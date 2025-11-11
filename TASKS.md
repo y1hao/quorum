@@ -9,8 +9,8 @@
 ### **Task 0.1 — Scaffold the project**
 
 ```bash
-npx create-react-app raft-visualizer --template typescript
-cd raft-visualizer
+npx create-react-app quorum --template typescript
+cd quorum
 npm install framer-motion d3 tailwindcss zustand vitest @types/jest
 npx tailwindcss init -p
 ```
