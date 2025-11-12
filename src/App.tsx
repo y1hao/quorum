@@ -3,7 +3,7 @@ import { SidebarState } from "./components/SidebarState";
 import { useRaftSimulation } from "./simulation/useRaftSimulation";
 
 function App() {
-  const { cluster, rpcMessages, isRunning, toggle, reset, step, addCommand } =
+  const { cluster, rpcMessages, isRunning, toggle, reset, step, addCommand, toggleNodeLiveliness } =
     useRaftSimulation();
 
   return (
@@ -19,7 +19,7 @@ function App() {
             </div>
           </div>
           <div className="h-[520px]">
-            <ClusterCanvas cluster={cluster} rpcMessages={rpcMessages} />
+            <ClusterCanvas cluster={cluster} rpcMessages={rpcMessages} onNodeClick={toggleNodeLiveliness} />
           </div>
         </section>
         <section className="w-full lg:w-80">

@@ -162,7 +162,7 @@ export class RaftNode {
     this.resetElectionTimer();
   }
 
-  exportState(): ClusterNodeState {
+  exportState(): Omit<ClusterNodeState, "isAlive"> {
     return {
       id: this.id,
       role: this.role,

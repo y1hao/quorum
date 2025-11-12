@@ -7,6 +7,7 @@ export class RaftCluster {
   private recentMessages: RaftMessage[] = [];
   private tickCounter = 0;
   private lastDelta = 100;
+  private killedNodes: Set<string> = new Set();
 
   constructor(count: number) {
     for (let i = 0; i < count; i += 1) {
@@ -19,7 +20,11 @@ export class RaftCluster {
   tick(deltaMs = 100) {
     this.lastDelta = deltaMs;
     this.tickCounter += 1;
-    this.nodes.forEach((node) => {
+    this.nodes.forEach((node, nodeId) => {
+      // Skip killed nodes
+      if (this.killedNodes.has(nodeId)) {
+        return;
+      }
       const outgoing = node.tick(deltaMs);
       this.enqueueMessages(outgoing);
     });
@@ -34,6 +39,10 @@ export class RaftCluster {
     this.messageQueue = [];
 
     queue.forEach((msg) => {
+      // Skip messages from or to killed nodes
+      if (this.killedNodes.has(msg.from) || this.killedNodes.has(msg.to)) {
+        return;
+      }
       const recipient = this.nodes.get(msg.to);
       if (!recipient) {
         return;
@@ -59,10 +68,27 @@ export class RaftCluster {
     return null;
   }
 
+  toggleNodeLiveliness(nodeId: string) {
+    if (this.killedNodes.has(nodeId)) {
+      this.killedNodes.delete(nodeId);
+    } else {
+      this.killedNodes.add(nodeId);
+      // If the node was a leader, it should step down
+      const node = this.nodes.get(nodeId);
+      if (node && node.role === "leader") {
+        node.becomeFollower(node.term);
+      }
+    }
+  }
+
   exportState(): ClusterState {
-    const snapshots = Array.from(this.nodes.values()).map((node) =>
-      node.exportState()
-    );
+    const snapshots = Array.from(this.nodes.values()).map((node) => {
+      const state = node.exportState();
+      return {
+        ...state,
+        isAlive: !this.killedNodes.has(node.id),
+      };
+    });
     const leader = this.leader();
     const highestTerm = snapshots.reduce(
       (acc, node) => Math.max(acc, node.term),

@@ -53,6 +53,7 @@ export interface ClusterNodeState {
   commitIndex: number;
   electionTimeout: number;
   heartbeatTimeout: number;
+  isAlive: boolean;
 }
 
 export interface ClusterState {

@@ -15,6 +15,7 @@ export interface SimulationController {
   reset: () => void;
   step: () => void;
   addCommand: () => void;
+  toggleNodeLiveliness: (nodeId: string) => void;
 }
 
 export const useRaftSimulation = (
@@ -113,6 +114,13 @@ export const useRaftSimulation = (
     setClusterState(snapshot);
   }, [clusterRef]);
 
+  const toggleNodeLiveliness = useCallback((nodeId: string) => {
+    const cluster = clusterRef.current;
+    cluster.toggleNodeLiveliness(nodeId);
+    const snapshot = cluster.exportState();
+    setClusterState(snapshot);
+  }, [clusterRef]);
+
   return useMemo(
     () => ({
       cluster: clusterState,
@@ -122,7 +130,8 @@ export const useRaftSimulation = (
       reset,
       step,
       addCommand,
+      toggleNodeLiveliness,
     }),
-    [clusterState, rpcMessages, isRunning, toggle, reset, step, addCommand]
+    [clusterState, rpcMessages, isRunning, toggle, reset, step, addCommand, toggleNodeLiveliness]
   );
 };

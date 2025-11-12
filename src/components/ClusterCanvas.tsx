@@ -10,13 +10,14 @@ import { NodeTooltip } from "./NodeTooltip";
 interface ClusterCanvasProps {
   cluster: ClusterState;
   rpcMessages: RpcVisualMessage[];
+  onNodeClick?: (nodeId: string) => void;
 }
 
 const WIDTH = 720;
 const HEIGHT = 520;
 const RADIUS = 200;
 
-export const ClusterCanvas = ({ cluster, rpcMessages }: ClusterCanvasProps) => {
+export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanvasProps) => {
   const ids = cluster.nodes.map((node) => node.id);
   const positions = computeNodePositions(ids, RADIUS, WIDTH / 2, HEIGHT / 2);
 
@@ -88,6 +89,7 @@ export const ClusterCanvas = ({ cluster, rpcMessages }: ClusterCanvasProps) => {
               y={pos.y}
               isSelected={hovered?.id === node.id || cluster.leaderId === node.id}
               onHover={setHovered}
+              onClick={() => onNodeClick?.(node.id)}
             />
           );
         })}
