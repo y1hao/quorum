@@ -213,6 +213,31 @@ export class RaftNode {
     );
   }
 
+  replicateEntries(entries: LogEntry[]): RaftMessage[] {
+    if (this.role !== "leader" || !entries.length) {
+      return [];
+    }
+
+    // Find the previous entry before the new entries
+    const firstNewIndex = entries[0].index;
+    const prevEntryIndex = firstNewIndex > 1 ? firstNewIndex - 1 : 0;
+    const prevEntry = prevEntryIndex > 0
+      ? this.log.find((e) => e.index === prevEntryIndex)
+      : null;
+
+    const payload: AppendEntriesPayload = {
+      entries,
+      prevLogIndex: prevEntryIndex,
+      prevLogTerm: prevEntry?.term ?? 0,
+      leaderCommit: this.commitIndex,
+      isHeartbeat: false,
+    };
+
+    return this.peers.map((peer) =>
+      createAppendEntries(this.id, peer, this.term, payload)
+    );
+  }
+
   private handleAppendEntries(
     leaderId: string,
     term: number,

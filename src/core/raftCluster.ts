@@ -85,7 +85,7 @@ export class RaftCluster {
     this.nodes.forEach((node) => node.setPeers(ids));
   }
 
-  private enqueueMessages(messages: RaftMessage[]) {
+  enqueueMessages(messages: RaftMessage[]) {
     if (!messages.length) {
       return;
     }

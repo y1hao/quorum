@@ -94,12 +94,19 @@ export const useRaftSimulation = (
     const nextIndex = leader.log.length
       ? leader.log[leader.log.length - 1].index + 1
       : 1;
-    leader.appendEntry({
+    const newEntry = {
       index: nextIndex,
       term: leader.term,
       command: `set-x-${nextIndex}`,
-    });
-    cluster.tick(leader.heartbeatTimeout);
+    };
+    leader.appendEntry(newEntry);
+    
+    // Immediately replicate the entry to followers
+    const replicationMessages = leader.replicateEntries([newEntry]);
+    cluster.enqueueMessages(replicationMessages);
+    
+    // Tick by a small amount instead of heartbeatTimeout to avoid triggering elections
+    cluster.tick(SIMULATION_TICK_INTERVAL_MS);
     cluster.deliver();
     const snapshot = cluster.exportState();
     driverRef.current.ingest(snapshot.messages);
