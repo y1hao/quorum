@@ -58,6 +58,7 @@ Desktop.ini
 .parcel-cache/
 .eslintcache
 .stylelintcache
+.vite/
 
 # Optional npm cache directory
 .npm
