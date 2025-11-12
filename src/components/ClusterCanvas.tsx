@@ -67,7 +67,16 @@ export const ClusterCanvas = ({ cluster, rpcMessages }: ClusterCanvasProps) => {
           if (!from || !to) {
             return null;
           }
-          return <RpcDot key={message.id} message={message} from={from} to={to} />;
+          const messageLookup = (id: string) => rpcMessages.find((m) => m.id === id);
+          return (
+            <RpcDot
+              key={message.id}
+              message={message}
+              from={from}
+              to={to}
+              messageLookup={messageLookup}
+            />
+          );
         })}
         {cluster.nodes.map((node) => {
           const pos = positions[node.id];

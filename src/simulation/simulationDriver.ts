@@ -1,4 +1,4 @@
-import { RaftMessage } from "../core/types";
+import { RaftMessage, AppendEntriesPayload } from "../core/types";
 import { MESSAGE_TRANSIT_DURATION_MS } from "../core/timing";
 import { clamp01 } from "../utils/animation";
 
@@ -7,6 +7,7 @@ export interface RpcVisualMessage extends RaftMessage {
   duration: number;
   createdAt: number;
   startTime: number; // When this message should start animating
+  isHeartbeatResponse?: boolean; // True if this response is responding to a heartbeat
 }
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -48,16 +49,30 @@ export class SimulationDriver {
     
     // Second pass: ingest response messages, checking if their request is in batch or already active
     responsesInBatch.forEach((message) => {
+      // Check if this response is responding to a heartbeat
+      let isHeartbeatResponse = false;
+      const requestInBatch = requestsInBatch.get(message.respondsTo!);
+      if (requestInBatch && requestInBatch.type === "AppendEntries") {
+        const payload = requestInBatch.payload as AppendEntriesPayload | undefined;
+        isHeartbeatResponse = payload?.isHeartbeat === true;
+      } else {
+        const activeRequest = this.messages.get(message.respondsTo!);
+        if (activeRequest && activeRequest.type === "AppendEntries") {
+          const payload = activeRequest.payload as AppendEntriesPayload | undefined;
+          isHeartbeatResponse = payload?.isHeartbeat === true;
+        }
+      }
+
       const visualMessage: RpcVisualMessage = {
         ...message,
         progress: 0,
         duration: MESSAGE_TRANSIT_DURATION_MS,
         createdAt: currentTime,
         startTime: currentTime,
+        isHeartbeatResponse,
       };
       
       // Check if request is in the current batch
-      const requestInBatch = requestsInBatch.get(message.respondsTo!);
       if (requestInBatch) {
         // Request is in same batch, delay response until request completes
         visualMessage.startTime = currentTime + MESSAGE_TRANSIT_DURATION_MS;
