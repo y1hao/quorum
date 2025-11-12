@@ -38,7 +38,7 @@ export class RaftCluster {
       if (!recipient) {
         return;
       }
-      const responses = recipient.handleMessage(msg);
+      const responses = recipient.handleMessage(msg, msg.id);
       this.enqueueMessages(responses);
     });
   }

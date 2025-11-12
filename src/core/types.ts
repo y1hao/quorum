@@ -41,6 +41,7 @@ export interface RaftMessage<TPayload = unknown> {
   term: number;
   type: RaftMessageType;
   payload?: TPayload;
+  respondsTo?: string; // ID of the message this is responding to
 }
 
 export interface ClusterNodeState {

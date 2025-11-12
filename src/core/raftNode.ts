@@ -72,7 +72,7 @@ export class RaftNode {
     return outgoing;
   }
 
-  handleMessage(msg: RaftMessage): RaftMessage[] {
+  handleMessage(msg: RaftMessage, requestId: string): RaftMessage[] {
     const responses: RaftMessage[] = [];
 
     if (msg.term > this.term) {
@@ -84,7 +84,7 @@ export class RaftNode {
         const payload = msg.payload as RequestVotePayload;
         const granted = this.evaluateVoteRequest(msg.term, msg.from, payload);
         responses.push(
-          createVoteGranted(this.id, msg.from, this.term, { granted })
+          createVoteGranted(this.id, msg.from, this.term, { granted }, requestId)
         );
         break;
       }
@@ -111,7 +111,7 @@ export class RaftNode {
           matchIndex: this.log.length,
         };
         responses.push(
-          createAppendResponse(this.id, msg.from, this.term, responsePayload)
+          createAppendResponse(this.id, msg.from, this.term, responsePayload, requestId)
         );
         break;
       }

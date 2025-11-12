@@ -37,8 +37,15 @@ export const createVoteGranted = (
   from: string,
   to: string,
   term: number,
-  payload: VoteGrantedPayload
-) => makeMessage<VoteGrantedPayload>("VoteGranted", from, to, term, payload);
+  payload: VoteGrantedPayload,
+  respondsTo?: string
+) => {
+  const msg = makeMessage<VoteGrantedPayload>("VoteGranted", from, to, term, payload);
+  if (respondsTo) {
+    msg.respondsTo = respondsTo;
+  }
+  return msg;
+};
 
 export const createAppendEntries = (
   from: string,
@@ -51,8 +58,15 @@ export const createAppendResponse = (
   from: string,
   to: string,
   term: number,
-  payload: AppendResponsePayload
-) => makeMessage<AppendResponsePayload>("AppendResponse", from, to, term, payload);
+  payload: AppendResponsePayload,
+  respondsTo?: string
+) => {
+  const msg = makeMessage<AppendResponsePayload>("AppendResponse", from, to, term, payload);
+  if (respondsTo) {
+    msg.respondsTo = respondsTo;
+  }
+  return msg;
+};
 
 export const cloneMessage = <T>(msg: RaftMessage<T>, overrides: Partial<RaftMessage<T>> = {}) => ({
   ...msg,

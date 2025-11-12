@@ -22,10 +22,12 @@ describe("RaftNode", () => {
 
     const term = node.term;
     node.handleMessage(
-      createVoteGranted("N2", "N1", term, { granted: true })
+      createVoteGranted("N2", "N1", term, { granted: true }),
+      "dummy-request-id-1"
     );
     node.handleMessage(
-      createVoteGranted("N3", "N1", term, { granted: true })
+      createVoteGranted("N3", "N1", term, { granted: true }),
+      "dummy-request-id-2"
     );
 
     expect(node.role).toBe("leader");
