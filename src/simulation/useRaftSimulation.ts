@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RaftCluster } from "../core/raftCluster";
 import { ClusterState } from "../core/types";
+import { SIMULATION_TICK_INTERVAL_MS } from "../core/timing";
 import {
   SimulationDriver,
   RpcVisualMessage,
 } from "./simulationDriver";
-
-const TICK_INTERVAL = 250;
 
 export interface SimulationController {
   cluster: ClusterState;
@@ -36,12 +35,12 @@ export const useRaftSimulation = (
 
     const id = window.setInterval(() => {
       const cluster = clusterRef.current;
-      cluster.tick(TICK_INTERVAL);
+      cluster.tick(SIMULATION_TICK_INTERVAL_MS);
       cluster.deliver();
       const snapshot = cluster.exportState();
       driverRef.current.ingest(snapshot.messages);
       setClusterState(snapshot);
-    }, TICK_INTERVAL);
+    }, SIMULATION_TICK_INTERVAL_MS);
 
     return () => window.clearInterval(id);
   }, [clusterRef, isRunning]);
@@ -78,7 +77,7 @@ export const useRaftSimulation = (
 
   const step = useCallback(() => {
     const cluster = clusterRef.current;
-    cluster.tick(TICK_INTERVAL);
+    cluster.tick(SIMULATION_TICK_INTERVAL_MS);
     cluster.deliver();
     const snapshot = cluster.exportState();
     driverRef.current.ingest(snapshot.messages);

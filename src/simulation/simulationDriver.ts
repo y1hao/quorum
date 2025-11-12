@@ -1,4 +1,5 @@
 import { RaftMessage } from "../core/types";
+import { MESSAGE_TRANSIT_DURATION_MS } from "../core/timing";
 import { clamp01 } from "../utils/animation";
 
 export interface RpcVisualMessage extends RaftMessage {
@@ -7,8 +8,6 @@ export interface RpcVisualMessage extends RaftMessage {
   createdAt: number;
   startTime: number; // When this message should start animating
 }
-
-const DEFAULT_DURATION = 900;
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
@@ -40,7 +39,7 @@ export class SimulationDriver {
       const visualMessage: RpcVisualMessage = {
         ...message,
         progress: 0,
-        duration: DEFAULT_DURATION,
+        duration: MESSAGE_TRANSIT_DURATION_MS,
         createdAt: currentTime,
         startTime: currentTime,
       };
@@ -52,7 +51,7 @@ export class SimulationDriver {
       const visualMessage: RpcVisualMessage = {
         ...message,
         progress: 0,
-        duration: DEFAULT_DURATION,
+        duration: MESSAGE_TRANSIT_DURATION_MS,
         createdAt: currentTime,
         startTime: currentTime,
       };
@@ -61,7 +60,7 @@ export class SimulationDriver {
       const requestInBatch = requestsInBatch.get(message.respondsTo!);
       if (requestInBatch) {
         // Request is in same batch, delay response until request completes
-        visualMessage.startTime = currentTime + DEFAULT_DURATION;
+        visualMessage.startTime = currentTime + MESSAGE_TRANSIT_DURATION_MS;
         this.pendingResponses.set(message.id, visualMessage);
       } else {
         // Check if request is already active

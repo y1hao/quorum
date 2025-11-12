@@ -14,15 +14,16 @@ import {
   createRequestVote,
   createVoteGranted,
 } from "./raftMessage";
+import {
+  ELECTION_TIMEOUT_RANGE_MS,
+  HEARTBEAT_INTERVAL_MS,
+} from "./timing";
 
 interface RaftNodeOptions {
   electionTimeoutMs?: number;
   heartbeatTimeoutMs?: number;
   random?: () => number;
 }
-
-const DEFAULT_ELECTION_RANGE: [number, number] = [300, 600];
-const DEFAULT_HEARTBEAT = 120;
 
 export class RaftNode {
   readonly id: string;
@@ -45,7 +46,7 @@ export class RaftNode {
     this.random = options.random ?? Math.random;
     this.electionTimeout =
       options.electionTimeoutMs ?? this.nextElectionTimeout();
-    this.heartbeatTimeout = options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT;
+    this.heartbeatTimeout = options.heartbeatTimeoutMs ?? HEARTBEAT_INTERVAL_MS;
   }
 
   setPeers(peerIds: string[]) {
@@ -271,7 +272,7 @@ export class RaftNode {
   }
 
   private nextElectionTimeout() {
-    const [min, max] = DEFAULT_ELECTION_RANGE;
+    const [min, max] = ELECTION_TIMEOUT_RANGE_MS;
     return min + this.random() * (max - min);
   }
 
