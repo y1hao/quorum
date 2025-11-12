@@ -40,6 +40,7 @@ export class RaftNode {
   private heartbeatElapsed = 0;
   private peers: string[] = [];
   private votes: Set<string> = new Set();
+  private pendingElection = false;
 
   constructor(id: string, options: RaftNodeOptions = {}) {
     this.id = id;
@@ -66,7 +67,7 @@ export class RaftNode {
       return outgoing;
     }
 
-    if (this.electionElapsed >= this.electionTimeout) {
+    if (!this.pendingElection && this.electionElapsed >= this.electionTimeout) {
       outgoing.push(...this.startElection());
     }
 
@@ -112,6 +113,7 @@ export class RaftNode {
         const responsePayload: AppendResponsePayload = {
           success,
           matchIndex: this.log.length,
+          isHeartbeatResponse: payload.isHeartbeat === true,
         };
         responses.push(
           createAppendResponse(this.id, msg.from, this.term, responsePayload, requestId)
@@ -154,6 +156,7 @@ export class RaftNode {
     this.votes = new Set([this.id]);
     this.heartbeatElapsed = 0;
     this.electionElapsed = 0;
+    this.pendingElection = false;
   }
 
   becomeFollower(term: number) {
@@ -162,6 +165,7 @@ export class RaftNode {
     this.votedFor = undefined;
     this.votes.clear();
     this.resetElectionTimer();
+    this.pendingElection = false;
   }
 
   exportState(): Omit<ClusterNodeState, "isAlive"> {
@@ -197,6 +201,7 @@ export class RaftNode {
 
   // Apply the candidate state change (called when election messages are sent)
   applyElectionStart(newTerm: number) {
+    this.pendingElection = false;
     this.becomeCandidate();
     // Ensure term matches what was sent in messages
     this.term = newTerm;
@@ -205,6 +210,7 @@ export class RaftNode {
   private startElection(): RaftMessage[] {
     // Use prepareElection to get messages with new term
     // State change will be applied by cluster after messages are enqueued
+    this.pendingElection = true;
     const { messages } = this.prepareElection();
     return messages;
   }

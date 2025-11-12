@@ -147,17 +147,9 @@ export class RaftCluster {
               if (index !== -1) {
                 this.recentMessages.splice(index, 1);
               }
-              // Send heartbeat messages
-              // These will be added to messageQueue and recentMessages
-              // They will be exported in the next tick when exportState() is called
+              // Immediately send heartbeat messages so followers reset their timers
               const heartbeatMessages = node.broadcastHeartbeat();
-              // Add heartbeats directly to messageQueue but NOT to recentMessages
-              // to avoid them being exported before the next tick
-              heartbeatMessages.forEach(msg => {
-                if (!this.messageQueue.some(m => m.id === msg.id)) {
-                  this.messageQueue.push(msg);
-                }
-              });
+              this.enqueueMessages(heartbeatMessages);
             }
           }
         }
@@ -222,6 +214,15 @@ export class RaftCluster {
     return state;
   }
 
+  drainRecentMessages(): RaftMessage[] {
+    if (!this.recentMessages.length) {
+      return [];
+    }
+    const messages = [...this.recentMessages];
+    this.recentMessages = [];
+    return messages;
+  }
+
   private connectPeers() {
     const ids = Array.from(this.nodes.keys());
     this.nodes.forEach((node) => node.setPeers(ids));
@@ -231,15 +232,7 @@ export class RaftCluster {
     if (!messages.length) {
       return;
     }
-    // Deduplicate messages by ID to prevent duplicates
-    const seenIds = new Set(this.messageQueue.map(m => m.id));
-    const newMessages = messages.filter(m => !seenIds.has(m.id));
-    
-    this.messageQueue.push(...newMessages);
-    
-    // Also deduplicate for recentMessages
-    const recentIds = new Set(this.recentMessages.map(m => m.id));
-    const newRecentMessages = messages.filter(m => !recentIds.has(m.id));
-    this.recentMessages.push(...newRecentMessages);
+    this.messageQueue.push(...messages);
+    this.recentMessages.push(...messages);
   }
 }

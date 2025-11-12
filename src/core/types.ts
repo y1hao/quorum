@@ -32,6 +32,7 @@ export interface AppendEntriesPayload {
 export interface AppendResponsePayload {
   success: boolean;
   matchIndex: number;
+  isHeartbeatResponse?: boolean;
 }
 
 export interface RaftMessage<TPayload = unknown> {

@@ -1,4 +1,4 @@
-import { RaftMessage, AppendEntriesPayload } from "../core/types";
+import { RaftMessage, AppendEntriesPayload, AppendResponsePayload } from "../core/types";
 import { MESSAGE_TRANSIT_DURATION_MS } from "../core/timing";
 import { clamp01 } from "../utils/animation";
 
@@ -18,15 +18,10 @@ export class SimulationDriver {
 
   ingest(newMessages: RaftMessage[]) {
     const currentTime = now();
-    
-    // Deduplicate messages by ID - skip messages we've already ingested
-    const existingIds = new Set([
-      ...Array.from(this.messages.keys()),
-      ...Array.from(this.pendingResponses.keys())
-    ]);
-    const uniqueMessages = newMessages.filter(m => m && !existingIds.has(m.id));
-    
-    if (uniqueMessages.length === 0) {
+    const incoming = newMessages ?? [];
+    const messages = incoming.filter(Boolean);
+
+    if (messages.length === 0) {
       return;
     }
     
@@ -34,7 +29,7 @@ export class SimulationDriver {
     const requestsInBatch = new Map<string, RaftMessage>();
     const responsesInBatch: RaftMessage[] = [];
     
-    uniqueMessages.forEach((message) => {
+    messages.forEach((message) => {
       if (message.respondsTo) {
         responsesInBatch.push(message);
       } else {
@@ -57,12 +52,14 @@ export class SimulationDriver {
     // Second pass: ingest response messages, checking if their request is in batch or already active
     responsesInBatch.forEach((message) => {
       // Check if this response is responding to a heartbeat
-      let isHeartbeatResponse = false;
+      let isHeartbeatResponse = Boolean(
+        (message.payload as AppendResponsePayload | undefined)?.isHeartbeatResponse
+      );
       const requestInBatch = requestsInBatch.get(message.respondsTo!);
-      if (requestInBatch && requestInBatch.type === "AppendEntries") {
+      if (!isHeartbeatResponse && requestInBatch && requestInBatch.type === "AppendEntries") {
         const payload = requestInBatch.payload as AppendEntriesPayload | undefined;
         isHeartbeatResponse = payload?.isHeartbeat === true;
-      } else {
+      } else if (!isHeartbeatResponse) {
         const activeRequest = this.messages.get(message.respondsTo!);
         if (activeRequest && activeRequest.type === "AppendEntries") {
           const payload = activeRequest.payload as AppendEntriesPayload | undefined;

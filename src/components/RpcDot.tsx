@@ -13,16 +13,16 @@ interface RpcDotProps {
 
 const MESSAGE_COLORS: Record<RpcVisualMessage["type"], string> = {
   RequestVote: "#facc15",
-  VoteGranted: "#22c55e",
+  VoteGranted: "#16a34a",
   AppendEntries: "#ef4444",
-  AppendResponse: "#10b981",
+  AppendResponse: "#f97316",
 };
 
 const HEARTBEAT_COLORS: Record<RpcVisualMessage["type"], string> = {
   RequestVote: "#facc15", // Not used for heartbeats
   VoteGranted: "#22c55e", // Not used for heartbeats
-  AppendEntries: "#3b82f6", // Blue for heartbeat AppendEntries
-  AppendResponse: "#60a5fa", // Lighter blue for heartbeat responses
+  AppendEntries: "#2563eb", // Blue for heartbeat AppendEntries
+  AppendResponse: "#38bdf8", // Lighter blue for heartbeat responses
 };
 
 const getMessageColor = (

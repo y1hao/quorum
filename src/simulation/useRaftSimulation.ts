@@ -64,8 +64,12 @@ export const useRaftSimulation = (
         // Update cluster state after applying pending changes (but don't export messages again)
         const snapshot = clusterRef.current.exportState(false);
         setClusterState(snapshot);
+        const immediateMessages = clusterRef.current.drainRecentMessages();
+        if (immediateMessages.length) {
+          driverRef.current.ingest(immediateMessages);
+        }
       }
-      
+
       setRpcMessages(driverRef.current.activeMessages());
       frame = requestAnimationFrame(animate);
     };
