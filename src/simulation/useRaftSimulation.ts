@@ -54,7 +54,18 @@ export const useRaftSimulation = (
       const current = performance.now();
       const delta = current - prev;
       prev = current;
-      driverRef.current.advance(delta);
+      const completedMessageIds = driverRef.current.advance(delta);
+      
+      // Check for started/completed messages and apply pending state changes
+      const startedMessages = driverRef.current.getStartedMessages();
+      const completedMessages = new Set(completedMessageIds);
+      if (startedMessages.size > 0 || completedMessages.size > 0) {
+        clusterRef.current.applyPendingStateChanges(startedMessages, completedMessages);
+        // Update cluster state after applying pending changes (but don't export messages again)
+        const snapshot = clusterRef.current.exportState(false);
+        setClusterState(snapshot);
+      }
+      
       setRpcMessages(driverRef.current.activeMessages());
       frame = requestAnimationFrame(animate);
     };

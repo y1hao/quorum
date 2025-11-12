@@ -97,10 +97,12 @@ export class RaftNode {
           payload?.granted
         ) {
           this.votes.add(msg.from);
-          if (this.reachedQuorum()) {
-            this.becomeLeader();
-            responses.push(...this.broadcastHeartbeat());
-          }
+          // Don't become leader immediately - this will be handled when message completes visually
+          // The cluster will check quorum and apply leader state change
+          // if (this.reachedQuorum()) {
+          //   this.becomeLeader();
+          //   responses.push(...this.broadcastHeartbeat());
+          // }
         }
         break;
       }
@@ -175,8 +177,10 @@ export class RaftNode {
     };
   }
 
-  private startElection(): RaftMessage[] {
-    this.becomeCandidate();
+  // Prepare election messages without changing state yet
+  // State will be changed when messages are actually sent
+  prepareElection(): { messages: RaftMessage[]; newTerm: number } {
+    const newTerm = this.term + 1;
     const payload: RequestVotePayload = {
       lastLogIndex: this.log.length
         ? this.log[this.log.length - 1].index
@@ -185,19 +189,33 @@ export class RaftNode {
     };
 
     const messages = this.peers.map((peer) =>
-      createRequestVote(this.id, peer, this.term, payload)
+      createRequestVote(this.id, peer, newTerm, payload)
     );
 
+    return { messages, newTerm };
+  }
+
+  // Apply the candidate state change (called when election messages are sent)
+  applyElectionStart(newTerm: number) {
+    this.becomeCandidate();
+    // Ensure term matches what was sent in messages
+    this.term = newTerm;
+  }
+
+  private startElection(): RaftMessage[] {
+    // Use prepareElection to get messages with new term
+    // State change will be applied by cluster after messages are enqueued
+    const { messages } = this.prepareElection();
     return messages;
   }
 
-  private reachedQuorum(): boolean {
+  reachedQuorum(): boolean {
     const total = this.peers.length + 1;
     const majority = Math.floor(total / 2) + 1;
     return this.votes.size >= majority;
   }
 
-  private broadcastHeartbeat(): RaftMessage[] {
+  broadcastHeartbeat(): RaftMessage[] {
     const payload: AppendEntriesPayload = {
       entries: [],
       prevLogIndex: this.log.length

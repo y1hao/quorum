@@ -19,15 +19,22 @@ export class SimulationDriver {
   ingest(newMessages: RaftMessage[]) {
     const currentTime = now();
     
+    // Deduplicate messages by ID - skip messages we've already ingested
+    const existingIds = new Set([
+      ...Array.from(this.messages.keys()),
+      ...Array.from(this.pendingResponses.keys())
+    ]);
+    const uniqueMessages = newMessages.filter(m => m && !existingIds.has(m.id));
+    
+    if (uniqueMessages.length === 0) {
+      return;
+    }
+    
     // First pass: ingest all non-response messages and build a map of requests in this batch
     const requestsInBatch = new Map<string, RaftMessage>();
     const responsesInBatch: RaftMessage[] = [];
     
-    newMessages.forEach((message) => {
-      if (!message) {
-        return;
-      }
-      
+    uniqueMessages.forEach((message) => {
       if (message.respondsTo) {
         responsesInBatch.push(message);
       } else {
@@ -92,7 +99,7 @@ export class SimulationDriver {
     });
   }
 
-  advance(deltaMs: number) {
+  advance(deltaMs: number): string[] {
     const currentTime = now();
     const completed: string[] = [];
     
@@ -132,8 +139,40 @@ export class SimulationDriver {
       }
     });
 
-    // Clean up completed messages
+    // Clean up completed messages AFTER returning the IDs
+    // Return completed IDs before deleting so they can be used for state changes
+    const completedIds = [...completed];
     completed.forEach((id) => this.messages.delete(id));
+    
+    return completedIds;
+  }
+  
+  getStartedMessages(): Set<string> {
+    const currentTime = now();
+    const started = new Set<string>();
+    
+    // Check all messages that have started (progress > 0)
+    this.messages.forEach((message, id) => {
+      if (currentTime >= message.startTime && message.progress > 0) {
+        started.add(id);
+      }
+    });
+    
+    return started;
+  }
+  
+  getCompletedMessages(): Set<string> {
+    const currentTime = now();
+    const completed = new Set<string>();
+    
+    // Check all messages that have completed (progress >= 1)
+    this.messages.forEach((message, id) => {
+      if (currentTime >= message.startTime && message.progress >= 1) {
+        completed.add(id);
+      }
+    });
+    
+    return completed;
   }
 
   activeMessages() {
