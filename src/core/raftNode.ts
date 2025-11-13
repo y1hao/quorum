@@ -121,7 +121,15 @@ export class RaftNode {
         break;
       }
       case "AppendResponse": {
-        // Leader bookkeeping is simplified for now.
+        if (this.role === "leader") {
+          const payload = msg.payload as AppendResponsePayload;
+          if (payload?.success) {
+            // Track successful replication responses
+            // Find which entry index this response is for by looking at the request
+            // We need to track this at the cluster level since we need the request message
+            // For now, we'll handle this in the cluster's handleMessage tracking
+          }
+        }
         break;
       }
       default:
@@ -139,7 +147,8 @@ export class RaftNode {
     } else {
       this.log.push(entry);
     }
-    this.commitIndex = Math.max(this.commitIndex, entry.index);
+    // Don't update commitIndex here - it should only update after quorum responses
+    // For leaders, commitIndex will be updated when AppendResponse messages confirm quorum
   }
 
   becomeCandidate() {

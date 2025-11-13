@@ -1,14 +1,15 @@
 import { RaftNode } from "./raftNode";
-import { ClusterState, RaftMessage, AppendEntriesPayload } from "./types";
+import { ClusterState, RaftMessage, AppendEntriesPayload, AppendResponsePayload } from "./types";
 
 interface PendingStateChange {
-  type: "election_start" | "leader_election" | "log_update";
+  type: "election_start" | "leader_election" | "log_update" | "commit_update";
   nodeId: string;
   messageId: string;
   newTerm?: number;
   logEntries?: any[];
   voteGranted?: boolean; // For leader_election: whether the vote was granted
   voteTerm?: number; // For leader_election: the term of the vote
+  entryIndex?: number; // For commit_update: the log entry index being committed
 }
 
 export class RaftCluster {
@@ -21,6 +22,11 @@ export class RaftCluster {
   private pendingStateChanges: Map<string, PendingStateChange> = new Map(); // messageId -> change
   private nodeUiStateSnapshots: Map<string, Omit<ClusterNodeState, "isAlive">> = new Map(); // Last known UI state before node was killed
   private revivedNodesPendingHeartbeat: Set<string> = new Set(); // Nodes that came back but haven't received heartbeat yet
+  // Track pending commits: entry index -> set of nodes that have confirmed replication
+  private pendingCommits: Map<number, Set<string>> = new Map(); // entryIndex -> Set<nodeId>
+  private entryIndexByRequestId: Map<string, number> = new Map(); // AppendEntries requestId -> highest entry index
+  private pendingCommitUiUpdates: Map<number, number> = new Map(); // entryIndex -> commitIndex before this entry
+  private responseSenderByResponseId: Map<string, string> = new Map(); // AppendResponse responseId -> fromNodeId
 
   constructor(count: number) {
     for (let i = 0; i < count; i += 1) {
@@ -91,10 +97,11 @@ export class RaftCluster {
         }
       }
       
-      // Track AppendEntries (heartbeat) messages to revived nodes
+      // Track AppendEntries messages
       if (msg.type === "AppendEntries") {
         const recipient = this.nodes.get(msg.to);
         const payload = msg.payload as AppendEntriesPayload;
+        
         // If this is a heartbeat to a node that's pending a heartbeat update
         if (recipient && this.revivedNodesPendingHeartbeat.has(msg.to) && payload?.isHeartbeat === true) {
           // Mark this message as updating the UI state when it completes
@@ -103,6 +110,47 @@ export class RaftCluster {
             nodeId: msg.to,
             messageId: msg.id,
           });
+        }
+        
+        // Track AppendEntries with new entries for commit tracking
+        if (payload?.entries && payload.entries.length > 0 && !payload.isHeartbeat) {
+          const sender = this.nodes.get(msg.from);
+          if (sender && sender.role === "leader") {
+            // Track the highest entry index in this request
+            const highestIndex = Math.max(...payload.entries.map(e => e.index));
+            this.entryIndexByRequestId.set(msg.id, highestIndex);
+            
+            // Initialize pending commit tracking for new entries if not already tracked
+            payload.entries.forEach(entry => {
+              if (!this.pendingCommits.has(entry.index)) {
+                this.pendingCommits.set(entry.index, new Set());
+                // Store the commitIndex before this entry for UI update
+                this.pendingCommitUiUpdates.set(entry.index, sender.commitIndex);
+              }
+            });
+          }
+        }
+      }
+      
+      // Track AppendResponse messages for commit tracking
+      if (msg.type === "AppendResponse") {
+        const recipient = this.nodes.get(msg.to);
+        const payload = msg.payload as AppendResponsePayload;
+        if (recipient && recipient.role === "leader" && payload?.success && msg.respondsTo) {
+          // Find which entry index this response is for
+          const entryIndex = this.entryIndexByRequestId.get(msg.respondsTo);
+          if (entryIndex !== undefined) {
+            // Track which node sent this response
+            this.responseSenderByResponseId.set(msg.id, msg.from);
+            // Mark this response for commit tracking when it completes visually
+            // We'll check quorum when the response completes, not when it's delivered
+            this.pendingStateChanges.set(msg.id, {
+              type: "commit_update",
+              nodeId: msg.to, // leader node
+              messageId: msg.id,
+              entryIndex: entryIndex,
+            });
+          }
         }
       }
       
@@ -180,6 +228,46 @@ export class RaftCluster {
           // Remove from pending set since heartbeat was received
           this.revivedNodesPendingHeartbeat.delete(change.nodeId);
         }
+      } else if (change.type === "commit_update" && change.entryIndex !== undefined) {
+        // This is an AppendResponse that completed visually
+        // Track that this follower has confirmed replication
+        const senderNodeId = this.responseSenderByResponseId.get(change.messageId);
+        if (!senderNodeId) {
+          // Response sender not tracked, skip
+          return;
+        }
+        
+        let confirmedNodes = this.pendingCommits.get(change.entryIndex);
+        if (!confirmedNodes) {
+          confirmedNodes = new Set();
+          this.pendingCommits.set(change.entryIndex, confirmedNodes);
+        }
+        confirmedNodes.add(senderNodeId);
+        
+        // Check if quorum is reached for this entry
+        // The leader already has the entry, so we need (majority - 1) followers to confirm
+        const totalNodes = this.nodes.size;
+        const majority = Math.floor(totalNodes / 2) + 1;
+        // Leader counts as 1, so we need (majority - 1) more followers
+        const requiredFollowers = majority - 1;
+        
+        if (node && node.role === "leader" && confirmedNodes.size >= requiredFollowers) {
+          // Quorum reached - update commitIndex
+          node.commitIndex = Math.max(node.commitIndex, change.entryIndex);
+          // Clean up tracking for this entry
+          this.pendingCommits.delete(change.entryIndex);
+          this.pendingCommitUiUpdates.delete(change.entryIndex);
+          // Clean up request ID mapping
+          const requestIdsToRemove: string[] = [];
+          this.entryIndexByRequestId.forEach((idx, reqId) => {
+            if (idx === change.entryIndex) {
+              requestIdsToRemove.push(reqId);
+            }
+          });
+          requestIdsToRemove.forEach(reqId => this.entryIndexByRequestId.delete(reqId));
+          // Clean up response sender mapping
+          this.responseSenderByResponseId.delete(change.messageId);
+        }
       }
       // Log updates are handled in handleMessage when message is received
     });
@@ -252,6 +340,26 @@ export class RaftCluster {
       
       // Use current internal state
       const state = node.exportState();
+      
+      // For leaders, if there are pending commits, use the stored commitIndex
+      // until the commit is visually confirmed
+      if (node.role === "leader" && isAlive) {
+        const pendingEntryIndices = Array.from(this.pendingCommits.keys());
+        if (pendingEntryIndices.length > 0) {
+          // Find the highest entry index that hasn't been committed yet
+          const highestPending = Math.max(...pendingEntryIndices);
+          const storedCommitIndex = this.pendingCommitUiUpdates.get(highestPending);
+          if (storedCommitIndex !== undefined && state.commitIndex > storedCommitIndex) {
+            // Use the stored commitIndex (before this entry) until commit is confirmed
+            return {
+              ...state,
+              commitIndex: storedCommitIndex,
+              isAlive,
+            };
+          }
+        }
+      }
+      
       return {
         ...state,
         isAlive,
