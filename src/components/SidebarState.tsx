@@ -18,13 +18,43 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => (
 
 const EventLog = ({ events }: { events: ClusterState["events"] }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [highlightedEvents, setHighlightedEvents] = useState<Set<string>>(new Set());
+  const prevEventsRef = useRef<EventLogEntry[]>([]);
 
   useEffect(() => {
-    // Auto-scroll to bottom when new events are added
+    // Auto-scroll to top when new events are added (since we're showing latest first)
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = 0;
     }
+
+    // Track new events for highlighting - only highlight the latest event
+    const prevEventIds = new Set(prevEventsRef.current.map(e => e.id));
+    const newEvents = events.filter(e => !prevEventIds.has(e.id));
+
+    if (newEvents.length > 0) {
+      // Only highlight the latest event (last in the array, which appears first when reversed)
+      const latestEventId = newEvents[newEvents.length - 1].id;
+      
+      // Clear any previous highlights and add only the latest
+      setHighlightedEvents(new Set([latestEventId]));
+
+      // Remove highlight after animation completes (2 seconds)
+      const timeout = setTimeout(() => {
+        setHighlightedEvents(prev => {
+          const updated = new Set(prev);
+          updated.delete(latestEventId);
+          return updated;
+        });
+      }, 2000);
+
+      return () => clearTimeout(timeout);
+    }
+
+    prevEventsRef.current = events;
   }, [events]);
+
+  // Reverse events to show latest first
+  const reversedEvents = [...events].reverse();
 
   return (
     <div className="flex flex-col">
@@ -39,14 +69,24 @@ const EventLog = ({ events }: { events: ClusterState["events"] }) => {
           <p className="text-slate-500">No events yet</p>
         ) : (
           <div className="flex flex-col gap-1">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="rounded px-2 py-1 text-slate-300 hover:bg-slate-700/50"
-              >
-                {event.message}
-              </div>
-            ))}
+            {reversedEvents.map((event, index) => {
+              const isHighlighted = highlightedEvents.has(event.id);
+              return (
+                <div
+                  key={event.id}
+                  className={`flex gap-2 rounded px-2 py-1 text-slate-300 hover:bg-slate-700/50 ${
+                    isHighlighted
+                      ? "text-emerald-100 animate-fade-out"
+                      : ""
+                  }`}
+                >
+                  <span className="flex-shrink-0 text-slate-500 font-mono">
+                    {events.length - index}
+                  </span>
+                  <span className="flex-1">{event.message}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
