@@ -57,10 +57,17 @@ export interface ClusterNodeState {
   isAlive: boolean;
 }
 
+export interface EventLogEntry {
+  id: string;
+  timestamp: number;
+  message: string;
+}
+
 export interface ClusterState {
   nodes: ClusterNodeState[];
   messages: RaftMessage[];
   leaderId: string | null;
   term: number;
   tick: number;
+  events: EventLogEntry[];
 }

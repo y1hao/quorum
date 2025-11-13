@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ClusterState } from "../core/types";
+import { useState, useEffect, useRef } from "react";
+import { ClusterState, EventLogEntry } from "../core/types";
 
 interface SidebarStateProps {
   cluster: ClusterState;
@@ -16,6 +16,44 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => (
   </div>
 );
 
+const EventLog = ({ events }: { events: ClusterState["events"] }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Auto-scroll to bottom when new events are added
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [events]);
+
+  return (
+    <div className="flex flex-col">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+        Event Log
+      </h3>
+      <div
+        ref={scrollRef}
+        className="h-48 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-xs"
+      >
+        {events.length === 0 ? (
+          <p className="text-slate-500">No events yet</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {events.map((event) => (
+              <div
+                key={event.id}
+                className="rounded px-2 py-1 text-slate-300 hover:bg-slate-700/50"
+              >
+                {event.message}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const SidebarState = ({
   cluster,
   isRunning,
@@ -24,6 +62,30 @@ export const SidebarState = ({
   onAddCommand,
 }: SidebarStateProps) => {
   const [inputValue, setInputValue] = useState("");
+  const [accumulatedEvents, setAccumulatedEvents] = useState<EventLogEntry[]>([]);
+  const prevTickRef = useRef<number>(cluster.tick);
+
+  // Accumulate events from cluster state
+  useEffect(() => {
+    if (cluster.events && cluster.events.length > 0) {
+      setAccumulatedEvents((prev) => {
+        // Only add events that aren't already in the accumulated list
+        const existingIds = new Set(prev.map((e) => e.id));
+        const newEvents = cluster.events.filter((e) => !existingIds.has(e.id));
+        return [...prev, ...newEvents];
+      });
+    }
+  }, [cluster.events]);
+
+  // Clear events on reset (detect when tick resets to 0 or decreases)
+  useEffect(() => {
+    if (cluster.tick < prevTickRef.current) {
+      // Tick decreased, which means reset happened
+      setAccumulatedEvents([]);
+    }
+    prevTickRef.current = cluster.tick;
+  }, [cluster.tick]);
+
   const commitIndex = cluster.nodes.reduce(
     (acc, node) => Math.max(acc, node.commitIndex),
     0
@@ -94,6 +156,10 @@ export const SidebarState = ({
         >
           Reset
         </button>
+      </div>
+
+      <div className="mt-auto">
+        <EventLog events={accumulatedEvents} />
       </div>
     </aside>
   );

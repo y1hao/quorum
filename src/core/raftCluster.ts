@@ -1,5 +1,5 @@
 import { RaftNode } from "./raftNode";
-import { ClusterState, RaftMessage, AppendEntriesPayload, AppendResponsePayload } from "./types";
+import { ClusterState, RaftMessage, AppendEntriesPayload, AppendResponsePayload, EventLogEntry } from "./types";
 
 interface PendingStateChange {
   type: "election_start" | "leader_election" | "log_update" | "commit_update";
@@ -27,6 +27,11 @@ export class RaftCluster {
   private entryIndexByRequestId: Map<string, number> = new Map(); // AppendEntries requestId -> highest entry index
   private pendingCommitUiUpdates: Map<number, number> = new Map(); // entryIndex -> commitIndex before this entry
   private responseSenderByResponseId: Map<string, string> = new Map(); // AppendResponse responseId -> fromNodeId
+  private eventLog: EventLogEntry[] = [];
+  private voteCountsByCandidate: Map<string, { term: number; votes: Set<string> }> = new Map(); // candidateId -> { term, votes }
+  private entryReplicationCounts: Map<number, Set<string>> = new Map(); // entryIndex -> Set<nodeId> that have replicated
+  private entryValuesByIndex: Map<number, string> = new Map(); // entryIndex -> entry command value
+  private loggedElections: Set<string> = new Set(); // Track logged elections: "nodeId-term"
 
   constructor(count: number) {
     for (let i = 0; i < count; i += 1) {
@@ -77,6 +82,7 @@ export class RaftCluster {
             messageId: msg.id,
             newTerm: msg.term,
           });
+          // Log vote request event when message starts (will be logged in applyPendingStateChanges)
         }
       }
       
@@ -85,6 +91,14 @@ export class RaftCluster {
         const recipient = this.nodes.get(msg.to);
         const payload = msg.payload as any;
         if (recipient && recipient.role === "candidate" && payload?.granted) {
+          // Track vote count for logging
+          if (!this.voteCountsByCandidate.has(msg.to)) {
+            this.voteCountsByCandidate.set(msg.to, { term: msg.term, votes: new Set([msg.to]) });
+          }
+          const voteCount = this.voteCountsByCandidate.get(msg.to);
+          if (voteCount && voteCount.term === msg.term) {
+            voteCount.votes.add(msg.from);
+          }
           // Mark this message as potentially triggering leader election
           // Store vote information so we can check quorum when message completes
           this.pendingStateChanges.set(msg.id, {
@@ -126,6 +140,13 @@ export class RaftCluster {
                 this.pendingCommits.set(entry.index, new Set());
                 // Store the commitIndex before this entry for UI update
                 this.pendingCommitUiUpdates.set(entry.index, sender.commitIndex);
+                // Initialize replication count (leader already has it)
+                this.entryReplicationCounts.set(entry.index, new Set([msg.from]));
+                // Store entry value for commit logging
+                this.entryValuesByIndex.set(entry.index, entry.command);
+                // Log new entry event
+                const entryValue = entry.command;
+                this.logEvent(`${msg.from} added new entry "${entryValue}", requesting followers to append`);
               }
             });
           }
@@ -195,6 +216,14 @@ export class RaftCluster {
       if (change.type === "election_start" && change.newTerm !== undefined) {
         // Apply candidate state change
         (node as any).applyElectionStart(change.newTerm);
+        // Log vote request event only once per election
+        const electionKey = `${change.nodeId}-${change.newTerm}`;
+        if (!this.loggedElections.has(electionKey)) {
+          this.logEvent(`${change.nodeId}'s heartbeat timed out and requested voting`);
+          this.loggedElections.add(electionKey);
+        }
+        // Initialize vote tracking
+        this.voteCountsByCandidate.set(change.nodeId, { term: change.newTerm, votes: new Set([change.nodeId]) });
       } else if (change.type === "leader_election") {
         // Check if this VoteGranted message should trigger leader election
         // The vote was already recorded in handleMessage, now check quorum
@@ -204,8 +233,18 @@ export class RaftCluster {
           if (node.role === "candidate" && change.voteTerm === node.term) {
             // Vote was already added in handleMessage, now check if quorum is reached
             // All votes that have been delivered are already counted, so we can check quorum now
+            const voteCount = this.voteCountsByCandidate.get(change.nodeId);
+            const totalNodes = this.nodes.size;
+            
             if (node.reachedQuorum()) {
               node.becomeLeader();
+              // Log combined vote grants and leader election
+              this.logEvent(`${change.nodeId} received quorum vote grants and became leader`);
+              // Clean up vote tracking and election logging
+              this.voteCountsByCandidate.delete(change.nodeId);
+              // Clean up logged elections for this node (keep only current term)
+              const electionKey = `${change.nodeId}-${change.voteTerm}`;
+              this.loggedElections.delete(electionKey);
               // Remove this VoteGranted message from recentMessages to prevent it from being re-exported
               // It was already exported when it was first delivered
               const index = this.recentMessages.findIndex(m => m.id === change.messageId);
@@ -253,10 +292,20 @@ export class RaftCluster {
         
         if (node && node.role === "leader" && confirmedNodes.size >= requiredFollowers) {
           // Quorum reached - update commitIndex
+          const oldCommitIndex = node.commitIndex;
           node.commitIndex = Math.max(node.commitIndex, change.entryIndex);
+          
+          // Log commit event if commitIndex actually changed
+          if (node.commitIndex > oldCommitIndex) {
+            const entryValue = this.entryValuesByIndex.get(change.entryIndex) || "unknown";
+            this.logEvent(`Entry "${entryValue}" confirmed by quorum nodes, entry is committed`);
+          }
+          
           // Clean up tracking for this entry
           this.pendingCommits.delete(change.entryIndex);
           this.pendingCommitUiUpdates.delete(change.entryIndex);
+          this.entryReplicationCounts.delete(change.entryIndex);
+          this.entryValuesByIndex.delete(change.entryIndex);
           // Clean up request ID mapping
           const requestIdsToRemove: string[] = [];
           this.entryIndexByRequestId.forEach((idx, reqId) => {
@@ -267,6 +316,16 @@ export class RaftCluster {
           requestIdsToRemove.forEach(reqId => this.entryIndexByRequestId.delete(reqId));
           // Clean up response sender mapping
           this.responseSenderByResponseId.delete(change.messageId);
+        } else {
+          // Update replication count for logging
+          const replicationCount = this.entryReplicationCounts.get(change.entryIndex);
+          if (replicationCount && senderNodeId) {
+            replicationCount.add(senderNodeId);
+            const totalNodes = this.nodes.size;
+            const confirmedCount = replicationCount.size + 1; // +1 for leader
+            // Log vote grant progress (but only once per new count to avoid spam)
+            // We'll log this in a different way - maybe when we reach certain milestones
+          }
         }
       }
       // Log updates are handled in handleMessage when message is received
@@ -303,6 +362,8 @@ export class RaftCluster {
         }
         // Mark this node as pending a heartbeat update
         this.revivedNodesPendingHeartbeat.add(nodeId);
+        // Log online event
+        this.logEvent(`${nodeId} is online`);
       }
     } else {
       // Node is being killed
@@ -319,6 +380,8 @@ export class RaftCluster {
       }
       // Remove from pending heartbeat set if it was there
       this.revivedNodesPendingHeartbeat.delete(nodeId);
+      // Log offline event
+      this.logEvent(`${nodeId} is offline`);
     }
   }
 
@@ -376,10 +439,14 @@ export class RaftCluster {
       leaderId: leader?.id ?? null,
       term: leader?.term ?? highestTerm,
       tick: this.tickCounter,
+      events: [...this.eventLog],
     };
 
     if (includeMessages) {
       this.recentMessages = [];
+      // Clear events after exporting (they've been consumed by UI)
+      // Only clear when including messages to avoid losing events during animation frame updates
+      this.eventLog = [];
     }
     return state;
   }
@@ -404,5 +471,18 @@ export class RaftCluster {
     }
     this.messageQueue.push(...messages);
     this.recentMessages.push(...messages);
+  }
+
+  private logEvent(message: string) {
+    const event: EventLogEntry = {
+      id: `${Date.now()}-${Math.random()}`,
+      timestamp: Date.now(),
+      message,
+    };
+    this.eventLog.push(event);
+    // Keep only last 1000 events to prevent memory issues
+    if (this.eventLog.length > 1000) {
+      this.eventLog.shift();
+    }
   }
 }
