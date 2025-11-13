@@ -289,7 +289,12 @@ export class RaftNode {
 
     if (payload.entries.length) {
       payload.entries.forEach((entry) => this.appendEntry(entry));
-      this.commitIndex = Math.max(this.commitIndex, payload.leaderCommit);
+    }
+
+    // Update commitIndex according to Raft: min(leaderCommit, index of last entry)
+    if (payload.leaderCommit > this.commitIndex) {
+      const lastLogIndex = this.log.length > 0 ? this.log[this.log.length - 1].index : 0;
+      this.commitIndex = Math.min(payload.leaderCommit, lastLogIndex);
     }
 
     return true;

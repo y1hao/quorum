@@ -50,27 +50,12 @@ export const NodeCircle = ({
       />
       <text
         x={x}
-        y={y - 4}
+        y={y + 4}
         textAnchor="middle"
         className="font-semibold fill-slate-900"
         fillOpacity={opacity}
       >
         {node.id}
-      </text>
-      <text
-        x={x}
-        y={y + 14}
-        textAnchor="middle"
-        className="text-xs fill-slate-900"
-        fillOpacity={opacity}
-      >
-        {node.commitIndex > 0
-          ? node.log
-              .filter((entry) => entry.index <= node.commitIndex)
-              .sort((a, b) => a.index - b.index)
-              .map((entry) => entry.command)
-              .join(", ")
-          : "-"}
       </text>
       {!node.isAlive && (
         <text

@@ -31,6 +31,16 @@ export const SidebarState = ({
     0
   );
 
+  // Find the last committed entry - use the maximum commitIndex across all nodes
+  // and find the entry with that index (all nodes should have the same committed entries)
+  const lastCommittedEntry = commitIndex > 0
+    ? cluster.nodes
+        .flatMap((node) => node.log.filter((entry) => entry.index === commitIndex))
+        .find((entry) => entry.index === commitIndex)
+    : null;
+
+  const lastCommittedValue = lastCommittedEntry?.command ?? null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim() && cluster.leaderId) {
@@ -42,7 +52,9 @@ export const SidebarState = ({
   return (
     <aside className="flex h-full flex-col gap-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
       <div>
-        <h2 className="text-xl font-semibold">Cluster State</h2>
+        <h2 className="text-xl font-semibold">
+          {lastCommittedValue !== null ? `Last Committed: ${lastCommittedValue}` : "Cluster State"}
+        </h2>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
