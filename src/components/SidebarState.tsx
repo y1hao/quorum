@@ -81,7 +81,7 @@ export const SidebarState = ({
         </button>
       </form>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex gap-3">
         <button
           onClick={onToggle}
           className="flex-1 rounded-lg bg-indigo-500/80 px-4 py-2 font-semibold text-white hover:bg-indigo-500"
@@ -90,7 +90,7 @@ export const SidebarState = ({
         </button>
         <button
           onClick={onReset}
-          className="rounded-lg border border-rose-500/60 px-4 py-2 text-sm font-semibold text-rose-300"
+          className="flex-1 rounded-lg border border-rose-500/60 px-4 py-2 text-sm font-semibold text-rose-300"
         >
           Reset
         </button>
