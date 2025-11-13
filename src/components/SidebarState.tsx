@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ClusterState } from "../core/types";
 
 interface SidebarStateProps {
@@ -6,7 +7,7 @@ interface SidebarStateProps {
   onToggle: () => void;
   onReset: () => void;
   onStep: () => void;
-  onAddCommand: () => void;
+  onAddCommand: (value: string) => void;
 }
 
 const Stat = ({ label, value }: { label: string; value: string | number }) => (
@@ -24,10 +25,19 @@ export const SidebarState = ({
   onStep,
   onAddCommand,
 }: SidebarStateProps) => {
+  const [inputValue, setInputValue] = useState("");
   const commitIndex = cluster.nodes.reduce(
     (acc, node) => Math.max(acc, node.commitIndex),
     0
   );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim() && cluster.leaderId) {
+      onAddCommand(inputValue.trim());
+      setInputValue("");
+    }
+  };
 
   return (
     <aside className="flex h-full flex-col gap-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
@@ -63,13 +73,23 @@ export const SidebarState = ({
         </button>
       </div>
 
-      <button
-        onClick={onAddCommand}
-        disabled={!cluster.leaderId}
-        className="rounded-lg bg-emerald-500/80 px-4 py-2 font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
-      >
-        Add Command
-      </button>
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Enter value..."
+          disabled={!cluster.leaderId}
+          className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={!cluster.leaderId || !inputValue.trim()}
+          className="rounded-lg bg-emerald-500/80 px-4 py-2 font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
+        >
+          Add
+        </button>
+      </form>
 
       <p className="text-xs text-slate-500">
         Commands append to the current leader's log and propagate via

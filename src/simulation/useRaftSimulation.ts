@@ -100,7 +100,7 @@ export const useRaftSimulation = (
     setClusterState(snapshot);
   }, [clusterRef]);
 
-  const addCommand = useCallback(() => {
+  const addCommand = useCallback((value: string) => {
     const cluster = clusterRef.current;
     const leader = cluster.leader();
     if (!leader) {
@@ -113,7 +113,7 @@ export const useRaftSimulation = (
     const newEntry = {
       index: nextIndex,
       term: leader.term,
-      command: `set-x-${nextIndex}`,
+      command: value,
     };
     leader.appendEntry(newEntry);
     

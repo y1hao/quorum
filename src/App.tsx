@@ -16,7 +16,7 @@ function App() {
             onToggle={toggle}
             onReset={reset}
             onStep={step}
-            onAddCommand={addCommand}
+            onAddCommand={(value) => addCommand(value)}
           />
         </section>
         <section className="flex-1 rounded-3xl border border-slate-800 bg-slate-900/40 p-4">

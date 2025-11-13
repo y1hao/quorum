@@ -64,7 +64,13 @@ export const NodeCircle = ({
         className="text-xs fill-slate-900"
         fillOpacity={opacity}
       >
-        T{node.term}
+        {node.commitIndex > 0
+          ? node.log
+              .filter((entry) => entry.index <= node.commitIndex)
+              .sort((a, b) => a.index - b.index)
+              .map((entry) => entry.command)
+              .join(", ")
+          : "-"}
       </text>
       {!node.isAlive && (
         <text
