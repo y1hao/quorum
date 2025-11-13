@@ -1,5 +1,5 @@
 import { RaftNode } from "./raftNode";
-import { ClusterState, RaftMessage } from "./types";
+import { ClusterState, RaftMessage, AppendEntriesPayload } from "./types";
 
 interface PendingStateChange {
   type: "election_start" | "leader_election" | "log_update";
@@ -19,6 +19,8 @@ export class RaftCluster {
   private lastDelta = 100;
   private killedNodes: Set<string> = new Set();
   private pendingStateChanges: Map<string, PendingStateChange> = new Map(); // messageId -> change
+  private nodeUiStateSnapshots: Map<string, Omit<ClusterNodeState, "isAlive">> = new Map(); // Last known UI state before node was killed
+  private revivedNodesPendingHeartbeat: Set<string> = new Set(); // Nodes that came back but haven't received heartbeat yet
 
   constructor(count: number) {
     for (let i = 0; i < count; i += 1) {
@@ -89,6 +91,21 @@ export class RaftCluster {
         }
       }
       
+      // Track AppendEntries (heartbeat) messages to revived nodes
+      if (msg.type === "AppendEntries") {
+        const recipient = this.nodes.get(msg.to);
+        const payload = msg.payload as AppendEntriesPayload;
+        // If this is a heartbeat to a node that's pending a heartbeat update
+        if (recipient && this.revivedNodesPendingHeartbeat.has(msg.to) && payload?.isHeartbeat === true) {
+          // Mark this message as updating the UI state when it completes
+          this.pendingStateChanges.set(msg.id, {
+            type: "log_update",
+            nodeId: msg.to,
+            messageId: msg.id,
+          });
+        }
+      }
+      
       const recipient = this.nodes.get(msg.to);
       if (!recipient) {
         return;
@@ -153,6 +170,16 @@ export class RaftCluster {
             }
           }
         }
+      } else if (change.type === "log_update") {
+        // This is a heartbeat that completed to a revived node
+        // Update the UI state snapshot to reflect the node's current internal state
+        // The node's state was already updated in handleMessage, now sync the UI snapshot
+        if (this.revivedNodesPendingHeartbeat.has(change.nodeId)) {
+          const currentState = node.exportState();
+          this.nodeUiStateSnapshots.set(change.nodeId, currentState);
+          // Remove from pending set since heartbeat was received
+          this.revivedNodesPendingHeartbeat.delete(change.nodeId);
+        }
       }
       // Log updates are handled in handleMessage when message is received
     });
@@ -176,23 +203,58 @@ export class RaftCluster {
 
   toggleNodeLiveliness(nodeId: string) {
     if (this.killedNodes.has(nodeId)) {
+      // Node is coming back online
       this.killedNodes.delete(nodeId);
+      const node = this.nodes.get(nodeId);
+      if (node) {
+        // Use the stored snapshot (from when it was killed) for UI display
+        // If no snapshot exists (shouldn't happen), create one now
+        if (!this.nodeUiStateSnapshots.has(nodeId)) {
+          const snapshot = node.exportState();
+          this.nodeUiStateSnapshots.set(nodeId, snapshot);
+        }
+        // Mark this node as pending a heartbeat update
+        this.revivedNodesPendingHeartbeat.add(nodeId);
+      }
     } else {
+      // Node is being killed
+      // Store the current UI state snapshot BEFORE marking as killed
+      const node = this.nodes.get(nodeId);
+      if (node) {
+        const snapshot = node.exportState();
+        this.nodeUiStateSnapshots.set(nodeId, snapshot);
+      }
       this.killedNodes.add(nodeId);
       // If the node was a leader, it should step down
-      const node = this.nodes.get(nodeId);
       if (node && node.role === "leader") {
         node.becomeFollower(node.term);
       }
+      // Remove from pending heartbeat set if it was there
+      this.revivedNodesPendingHeartbeat.delete(nodeId);
     }
   }
 
   exportState(includeMessages = true): ClusterState {
     const snapshots = Array.from(this.nodes.values()).map((node) => {
+      const isAlive = !this.killedNodes.has(node.id);
+      
+      // If node is alive but pending a heartbeat update, use the stored UI snapshot
+      // Otherwise, use the current internal state
+      if (isAlive && this.revivedNodesPendingHeartbeat.has(node.id)) {
+        const uiSnapshot = this.nodeUiStateSnapshots.get(node.id);
+        if (uiSnapshot) {
+          return {
+            ...uiSnapshot,
+            isAlive: true,
+          };
+        }
+      }
+      
+      // Use current internal state
       const state = node.exportState();
       return {
         ...state,
-        isAlive: !this.killedNodes.has(node.id),
+        isAlive,
       };
     });
     const leader = this.leader();
