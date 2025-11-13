@@ -33,16 +33,13 @@ export const SidebarState = ({
     <aside className="flex h-full flex-col gap-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
       <div>
         <h2 className="text-xl font-semibold">Cluster State</h2>
-        <p className="text-sm text-slate-400">
-          Term {cluster.term} · Tick {cluster.tick}
-        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Stat label="Leader" value={cluster.leaderId ?? "—"} />
         <Stat label="Nodes" value={cluster.nodes.length} />
+        <Stat label="Term" value={cluster.term} />
         <Stat label="Commit" value={commitIndex} />
-        <Stat label="Messages" value={cluster.messages.length} />
       </div>
 
       <div className="flex flex-wrap gap-3">
