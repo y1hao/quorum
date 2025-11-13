@@ -10,6 +10,8 @@ interface PendingStateChange {
   voteGranted?: boolean; // For leader_election: whether the vote was granted
   voteTerm?: number; // For leader_election: the term of the vote
   entryIndex?: number; // For commit_update: the log entry index being committed
+  wasPreviousLeader?: boolean; // For log_update: whether the node was a previous leader
+  newLeaderId?: string; // For log_update: the ID of the new leader
 }
 
 export class RaftCluster {
@@ -118,11 +120,18 @@ export class RaftCluster {
         
         // If this is a heartbeat to a node that's pending a heartbeat update
         if (recipient && this.revivedNodesPendingHeartbeat.has(msg.to) && payload?.isHeartbeat === true) {
+          // Check if the recipient was a previous leader stepping down due to new leader
+          const snapshot = this.nodeUiStateSnapshots.get(msg.to);
+          const wasPreviousLeader = snapshot && snapshot.role === "leader";
+          const isNewLeaderTerm = msg.term > (snapshot?.term ?? 0);
+          
           // Mark this message as updating the UI state when it completes
           this.pendingStateChanges.set(msg.id, {
             type: "log_update",
             nodeId: msg.to,
             messageId: msg.id,
+            wasPreviousLeader: wasPreviousLeader && isNewLeaderTerm,
+            newLeaderId: wasPreviousLeader && isNewLeaderTerm ? msg.from : undefined,
           });
         }
         
@@ -262,6 +271,11 @@ export class RaftCluster {
         // Update the UI state snapshot to reflect the node's current internal state
         // The node's state was already updated in handleMessage, now sync the UI snapshot
         if (this.revivedNodesPendingHeartbeat.has(change.nodeId)) {
+          // Check if this was a previous leader stepping down due to new leader
+          if (change.wasPreviousLeader && change.newLeaderId) {
+            this.logEvent(`${change.nodeId} received heartbeat from new generation leader ${change.newLeaderId} and stepped down`);
+          }
+          
           const currentState = node.exportState();
           this.nodeUiStateSnapshots.set(change.nodeId, currentState);
           // Remove from pending set since heartbeat was received
