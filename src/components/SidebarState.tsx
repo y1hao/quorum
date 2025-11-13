@@ -53,7 +53,7 @@ export const SidebarState = ({
     <aside className="flex h-full flex-col gap-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
       <div>
         <h2 className="text-xl font-semibold">
-          {lastCommittedValue !== null ? `Last Committed: ${lastCommittedValue}` : "Cluster State"}
+          {lastCommittedValue !== null ? `Last Committed: ${lastCommittedValue}` : "No commits"}
         </h2>
       </div>
 
