@@ -15,7 +15,6 @@ function App() {
             isRunning={isRunning}
             onToggle={toggle}
             onReset={reset}
-            onStep={step}
             onAddCommand={(value) => addCommand(value)}
           />
         </section>

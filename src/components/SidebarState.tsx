@@ -6,7 +6,6 @@ interface SidebarStateProps {
   isRunning: boolean;
   onToggle: () => void;
   onReset: () => void;
-  onStep: () => void;
   onAddCommand: (value: string) => void;
 }
 
@@ -22,7 +21,6 @@ export const SidebarState = ({
   isRunning,
   onToggle,
   onReset,
-  onStep,
   onAddCommand,
 }: SidebarStateProps) => {
   const [inputValue, setInputValue] = useState("");
@@ -89,12 +87,6 @@ export const SidebarState = ({
           className="flex-1 rounded-lg bg-indigo-500/80 px-4 py-2 font-semibold text-white hover:bg-indigo-500"
         >
           {isRunning ? "Pause" : "Play"}
-        </button>
-        <button
-          onClick={onStep}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold"
-        >
-          Step
         </button>
         <button
           onClick={onReset}
