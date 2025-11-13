@@ -51,6 +51,7 @@ export const SidebarState = ({
 
   return (
     <aside className="flex h-full flex-col gap-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <h1 className="text-3xl font-bold">Raft Visualizer</h1>
       <div>
         <h2 className="text-xl font-semibold">
           {lastCommittedValue !== null ? `Last Committed: ${lastCommittedValue}` : "No commits"}
@@ -63,6 +64,24 @@ export const SidebarState = ({
         <Stat label="Term" value={cluster.term} />
         <Stat label="Commit" value={commitIndex} />
       </div>
+
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Enter value..."
+          disabled={!cluster.leaderId}
+          className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={!cluster.leaderId || !inputValue.trim()}
+          className="rounded-lg bg-emerald-500/80 px-4 py-2 font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
+        >
+          Add
+        </button>
+      </form>
 
       <div className="flex flex-wrap gap-3">
         <button
@@ -84,30 +103,6 @@ export const SidebarState = ({
           Reset
         </button>
       </div>
-
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Enter value..."
-          disabled={!cluster.leaderId}
-          className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!cluster.leaderId || !inputValue.trim()}
-          className="rounded-lg bg-emerald-500/80 px-4 py-2 font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-emerald-500/30"
-        >
-          Add
-        </button>
-      </form>
-
-      <p className="text-xs text-slate-500">
-        Commands append to the current leader's log and propagate via
-        AppendEntries RPCs. Pause the simulation to step through elections in
-        slow motion.
-      </p>
     </aside>
   );
 };
