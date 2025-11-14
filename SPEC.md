@@ -1,5 +1,7 @@
 # 📄 SPEC.md
 
+> **📌 Documentation Status:** This file documents the project specification and architecture. It is kept for reference purposes and documents the project's design and development history.
+
 ## Project: Raft Consensus Visualization and Simulation (React + TypeScript)
 
 ---

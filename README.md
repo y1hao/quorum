@@ -1,46 +1,135 @@
-# Getting Started with Create React App
+# Quorum - Raft Consensus Visualization
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A frontend-only Raft consensus visualizer and simulator built with React + TypeScript. This project illustrates how Raft achieves leader election, quorum-based decisions, and log replication through animated RPC messages between nodes.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 🎨 **Visualize** the Raft protocol (leader election, heartbeats, log replication)
+- 🧠 **Simulate** quorum-based decisions and node state transitions
+- 🧩 **Modular Architecture** - Separated core logic from visualization for testability
+- 🧪 **Unit Tests** - Raft logic can be tested headlessly without the UI
 
-### `npm start`
+## Getting Started
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### Prerequisites
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+- Node.js (v16 or higher)
+- npm or yarn
 
-### `npm test`
+### Installation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+# Clone the repository
+git clone <repository-url>
+cd quorum
 
-### `npm run build`
+# Install dependencies
+npm install
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Running the Application
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+# Start the development server
+npm run dev
+# or
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+The application will open at [http://localhost:3000](http://localhost:3000).
 
-### `npm run eject`
+You can specify the number of nodes via URL query parameter:
+- `http://localhost:3000?n=5` - Run with 5 nodes (default is 9, range: 3-15)
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+### Building for Production
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm run build
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+The production build will be in the `dist/` directory.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+### Running Tests
 
-## Learn More
+```bash
+# Run tests once
+npm test
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+# Run tests in watch mode
+npm run test:watch
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# Run tests with UI
+npm run test:ui
+```
+
+### Type Checking
+
+```bash
+npm run type-check
+```
+
+## Project Structure
+
+```
+src/
+  core/           ← Pure Raft algorithm (no React, testable)
+  simulation/     ← Drives RaftCluster and adapts for animation
+  components/     ← React visualization layer
+  utils/          ← Layout, math, helpers
+  tests/          ← Unit tests for core logic
+```
+
+## Architecture
+
+The project follows a three-layer architecture:
+
+1. **Core Layer** (`src/core/`) - Pure TypeScript implementation of the Raft algorithm with no React dependencies. This layer is fully testable and can run in Node.js.
+
+2. **Simulation Layer** (`src/simulation/`) - Bridges the Raft logic with the visualization by managing the simulation loop and tracking message animations.
+
+3. **Visualization Layer** (`src/components/`) - React components that render the cluster state using SVG and Framer Motion for animations.
+
+## Usage
+
+### Controls
+
+- **Play/Pause** - Toggle simulation running state
+- **Reset** - Reset the cluster to initial state
+- **Add Command** - Add a new log entry to the cluster
+- **Click Nodes** - Toggle node liveliness (simulate node failures)
+
+### Visual Elements
+
+- **Blue Circles** - Follower nodes
+- **Yellow Circles** - Candidate nodes
+- **Red Circles** - Leader nodes
+- **Animated Dots** - RPC messages traveling between nodes
+  - Yellow dots - RequestVote messages
+  - Green dots - VoteGranted responses
+  - Red dots - AppendEntries (heartbeats)
+
+## Documentation
+
+For detailed specifications and development plans, see:
+- **[SPEC.md](./SPEC.md)** - Complete project specification and architecture details
+- **[TASKS.md](./TASKS.md)** - Development task breakdown and phased implementation plan
+
+> **Note:** These documentation files are kept for reference purposes and document the project's design and development history.
+
+## Technology Stack
+
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool and dev server
+- **Framer Motion** - Animation library
+- **Tailwind CSS** - Styling
+- **Vitest** - Testing framework
+- **D3** - Layout utilities
+
+## Development
+
+The project is structured to support both visualization and testing:
+
+- Core Raft logic is isolated and can be tested independently
+- Visualization layer is separate and can be modified without affecting core logic
+- The architecture supports future evolution into a real Raft implementation

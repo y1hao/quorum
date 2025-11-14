@@ -1,5 +1,7 @@
 # 🧱 TASKS.md
 
+> **📌 Documentation Status:** This file documents the development task breakdown and phased implementation plan. It is kept for reference purposes and documents the project's design and development history.
+
 ## Project: Raft Consensus Visualization and Simulation (React + TypeScript)
 
 ---
