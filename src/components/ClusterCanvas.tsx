@@ -46,14 +46,6 @@ export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanv
           </radialGradient>
         </defs>
         <rect width={WIDTH} height={HEIGHT} fill="url(#cluster-glow)" rx={24} />
-        <circle
-          cx={WIDTH / 2}
-          cy={HEIGHT / 2}
-          r={RADIUS + 30}
-          fill="none"
-          stroke="#1e293b"
-          strokeDasharray="6 8"
-        />
         {hullPath && (
           <path
             d={hullPath}
