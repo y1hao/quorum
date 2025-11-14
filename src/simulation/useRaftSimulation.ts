@@ -18,7 +18,7 @@ export interface SimulationController {
 }
 
 export const useRaftSimulation = (
-  nodeCount = 5
+  nodeCount: number
 ): SimulationController => {
   const clusterRef = useRef<RaftCluster>(new RaftCluster(nodeCount));
   const driverRef = useRef(new SimulationDriver());
