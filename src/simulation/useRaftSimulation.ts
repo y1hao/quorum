@@ -13,8 +13,7 @@ export interface SimulationController {
   isRunning: boolean;
   toggle: () => void;
   reset: () => void;
-  step: () => void;
-  addCommand: () => void;
+  addCommand: (value: string) => void;
   toggleNodeLiveliness: (nodeId: string) => void;
 }
 
@@ -91,15 +90,6 @@ export const useRaftSimulation = (
     setIsRunning(true);
   }, [nodeCount]);
 
-  const step = useCallback(() => {
-    const cluster = clusterRef.current;
-    cluster.tick(SIMULATION_TICK_INTERVAL_MS);
-    cluster.deliver();
-    const snapshot = cluster.exportState();
-    driverRef.current.ingest(snapshot.messages);
-    setClusterState(snapshot);
-  }, [clusterRef]);
-
   const addCommand = useCallback((value: string) => {
     const cluster = clusterRef.current;
     const leader = cluster.leader();
@@ -143,10 +133,9 @@ export const useRaftSimulation = (
       isRunning,
       toggle,
       reset,
-      step,
       addCommand,
       toggleNodeLiveliness,
     }),
-    [clusterState, rpcMessages, isRunning, toggle, reset, step, addCommand, toggleNodeLiveliness]
+    [clusterState, rpcMessages, isRunning, toggle, reset, addCommand, toggleNodeLiveliness]
   );
 };

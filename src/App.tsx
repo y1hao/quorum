@@ -3,8 +3,24 @@ import { SidebarState } from "./components/SidebarState";
 import { useRaftSimulation } from "./simulation/useRaftSimulation";
 
 function App() {
-  const { cluster, rpcMessages, isRunning, toggle, reset, step, addCommand, toggleNodeLiveliness } =
-    useRaftSimulation();
+  // Parse node count from URL query parameter
+  const getNodeCount = (): number => {
+    const params = new URLSearchParams(window.location.search);
+    const nParam = params.get("n");
+    if (nParam === null) {
+      return 9; // default
+    }
+    const parsed = parseInt(nParam, 10);
+    if (isNaN(parsed)) {
+      return 9; // default if invalid
+    }
+    // Clamp between [3, 15]
+    return Math.max(3, Math.min(15, parsed));
+  };
+
+  const nodeCount = getNodeCount();
+  const { cluster, rpcMessages, isRunning, toggle, reset, addCommand, toggleNodeLiveliness } =
+    useRaftSimulation(nodeCount);
 
   return (
     <main className="h-screen bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden">
