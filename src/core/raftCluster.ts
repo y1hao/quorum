@@ -154,120 +154,23 @@ export class RaftCluster {
         return;
       }
       
-      if (change.type === "election_start" && change.newTerm !== undefined) {
-        // Apply candidate state change
-        (node as any).applyElectionStart(change.newTerm);
-        // Log vote request event only once per election
-        const electionKey = `${change.nodeId}-${change.newTerm}`;
-        if (!this.loggedElections.has(electionKey)) {
-          this.logEvent(`${change.nodeId}'s heartbeat timed out and requested voting`);
-          this.loggedElections.add(electionKey);
-        }
-        // Initialize vote tracking
-        this.voteCountsByCandidate.set(change.nodeId, { term: change.newTerm, votes: new Set([change.nodeId]) });
-      } else if (change.type === "leader_election") {
-        // Check if this VoteGranted message should trigger leader election
-        // The vote was already recorded in handleMessage, now check quorum
-        // We only track this if the vote was granted and node was candidate, so we can trust that
-        if (change.voteGranted) {
-          // Check if node is still candidate (might have changed if term increased)
-          if (node.role === "candidate" && change.voteTerm === node.term) {
-            // Vote was already added in handleMessage, now check if quorum is reached
-            // All votes that have been delivered are already counted, so we can check quorum now
-            if (node.reachedQuorum()) {
-              node.becomeLeader();
-              // Log combined vote grants and leader election
-              this.logEvent(`${change.nodeId} received quorum vote grants and became leader`);
-              // Clean up vote tracking and election logging
-              this.voteCountsByCandidate.delete(change.nodeId);
-              // Clean up logged elections for this node (keep only current term)
-              const electionKey = `${change.nodeId}-${change.voteTerm}`;
-              this.loggedElections.delete(electionKey);
-              // Remove this VoteGranted message from recentMessages to prevent it from being re-exported
-              // It was already exported when it was first delivered
-              const index = this.recentMessages.findIndex(m => m.id === change.messageId);
-              if (index !== -1) {
-                this.recentMessages.splice(index, 1);
-              }
-              // Immediately send heartbeat messages so followers reset their timers
-              const heartbeatMessages = node.broadcastHeartbeat();
-              this.enqueueMessages(heartbeatMessages);
-            }
+      switch (change.type) {
+        case "election_start":
+          if (change.newTerm !== undefined) {
+            this.applyElectionStartChange(change, node);
           }
-        }
-      } else if (change.type === "log_update") {
-        // This is a heartbeat that completed to a revived node
-        // Update the UI state snapshot to reflect the node's current internal state
-        // The node's state was already updated in handleMessage, now sync the UI snapshot
-        if (this.revivedNodesPendingHeartbeat.has(change.nodeId)) {
-          // Check if this was a previous leader stepping down due to new leader
-          if (change.wasPreviousLeader && change.newLeaderId) {
-            this.logEvent(`${change.nodeId} received heartbeat from new generation leader ${change.newLeaderId} and stepped down`);
+          break;
+        case "leader_election":
+          this.applyLeaderElectionChange(change, node);
+          break;
+        case "log_update":
+          this.applyLogUpdateChange(change, node);
+          break;
+        case "commit_update":
+          if (change.entryIndex !== undefined) {
+            this.applyCommitUpdateChange(change, node);
           }
-          
-          const currentState = node.exportState();
-          this.nodeUiStateSnapshots.set(change.nodeId, currentState);
-          // Remove from pending set since heartbeat was received
-          this.revivedNodesPendingHeartbeat.delete(change.nodeId);
-        }
-      } else if (change.type === "commit_update" && change.entryIndex !== undefined) {
-        // This is an AppendResponse that completed visually
-        // Track that this follower has confirmed replication
-        const senderNodeId = this.responseSenderByResponseId.get(change.messageId);
-        if (!senderNodeId) {
-          // Response sender not tracked, skip
-          return;
-        }
-        
-        let confirmedNodes = this.pendingCommits.get(change.entryIndex);
-        if (!confirmedNodes) {
-          confirmedNodes = new Set();
-          this.pendingCommits.set(change.entryIndex, confirmedNodes);
-        }
-        confirmedNodes.add(senderNodeId);
-        
-        // Check if quorum is reached for this entry
-        // The leader already has the entry, so we need (majority - 1) followers to confirm
-        const totalNodes = this.nodes.size;
-        const majority = Math.floor(totalNodes / 2) + 1;
-        // Leader counts as 1, so we need (majority - 1) more followers
-        const requiredFollowers = majority - 1;
-        
-        if (node && node.role === "leader" && confirmedNodes.size >= requiredFollowers) {
-          // Quorum reached - update commitIndex
-          const oldCommitIndex = node.commitIndex;
-          node.commitIndex = Math.max(node.commitIndex, change.entryIndex);
-          
-          // Log commit event if commitIndex actually changed
-          if (node.commitIndex > oldCommitIndex) {
-            const entryValue = this.entryValuesByIndex.get(change.entryIndex) || "unknown";
-            this.logEvent(`Entry "${entryValue}" confirmed by quorum nodes, entry is committed`);
-          }
-          
-          // Clean up tracking for this entry
-          this.pendingCommits.delete(change.entryIndex);
-          this.pendingCommitUiUpdates.delete(change.entryIndex);
-          this.entryReplicationCounts.delete(change.entryIndex);
-          this.entryValuesByIndex.delete(change.entryIndex);
-          // Clean up request ID mapping
-          const requestIdsToRemove: string[] = [];
-          this.entryIndexByRequestId.forEach((idx, reqId) => {
-            if (idx === change.entryIndex) {
-              requestIdsToRemove.push(reqId);
-            }
-          });
-          requestIdsToRemove.forEach(reqId => this.entryIndexByRequestId.delete(reqId));
-          // Clean up response sender mapping
-          this.responseSenderByResponseId.delete(change.messageId);
-        } else {
-          // Update replication count for logging
-          const replicationCount = this.entryReplicationCounts.get(change.entryIndex);
-          if (replicationCount && senderNodeId) {
-            replicationCount.add(senderNodeId);
-            // Log vote grant progress (but only once per new count to avoid spam)
-            // We'll log this in a different way - maybe when we reach certain milestones
-          }
-        }
+          break;
       }
       // Log updates are handled in handleMessage when message is received
     });
@@ -577,6 +480,145 @@ export class RaftCluster {
         });
       }
     }
+  }
+
+  private applyElectionStartChange(change: PendingStateChange, node: RaftNode) {
+    if (change.newTerm === undefined) {
+      return;
+    }
+    
+    // Apply candidate state change
+    (node as any).applyElectionStart(change.newTerm);
+    // Log vote request event only once per election
+    const electionKey = `${change.nodeId}-${change.newTerm}`;
+    if (!this.loggedElections.has(electionKey)) {
+      this.logEvent(`${change.nodeId}'s heartbeat timed out and requested voting`);
+      this.loggedElections.add(electionKey);
+    }
+    // Initialize vote tracking
+    this.voteCountsByCandidate.set(change.nodeId, { term: change.newTerm, votes: new Set([change.nodeId]) });
+  }
+
+  private applyLeaderElectionChange(change: PendingStateChange, node: RaftNode) {
+    // Check if this VoteGranted message should trigger leader election
+    // The vote was already recorded in handleMessage, now check quorum
+    // We only track this if the vote was granted and node was candidate, so we can trust that
+    if (!change.voteGranted) {
+      return;
+    }
+    
+    // Check if node is still candidate (might have changed if term increased)
+    if (node.role === "candidate" && change.voteTerm === node.term) {
+      // Vote was already added in handleMessage, now check if quorum is reached
+      // All votes that have been delivered are already counted, so we can check quorum now
+      if (node.reachedQuorum()) {
+        node.becomeLeader();
+        // Log combined vote grants and leader election
+        this.logEvent(`${change.nodeId} received quorum vote grants and became leader`);
+        // Clean up vote tracking and election logging
+        this.voteCountsByCandidate.delete(change.nodeId);
+        // Clean up logged elections for this node (keep only current term)
+        const electionKey = `${change.nodeId}-${change.voteTerm}`;
+        this.loggedElections.delete(electionKey);
+        // Remove this VoteGranted message from recentMessages to prevent it from being re-exported
+        // It was already exported when it was first delivered
+        const index = this.recentMessages.findIndex(m => m.id === change.messageId);
+        if (index !== -1) {
+          this.recentMessages.splice(index, 1);
+        }
+        // Immediately send heartbeat messages so followers reset their timers
+        const heartbeatMessages = node.broadcastHeartbeat();
+        this.enqueueMessages(heartbeatMessages);
+      }
+    }
+  }
+
+  private applyLogUpdateChange(change: PendingStateChange, node: RaftNode) {
+    // This is a heartbeat that completed to a revived node
+    // Update the UI state snapshot to reflect the node's current internal state
+    // The node's state was already updated in handleMessage, now sync the UI snapshot
+    if (!this.revivedNodesPendingHeartbeat.has(change.nodeId)) {
+      return;
+    }
+    
+    // Check if this was a previous leader stepping down due to new leader
+    if (change.wasPreviousLeader && change.newLeaderId) {
+      this.logEvent(`${change.nodeId} received heartbeat from new generation leader ${change.newLeaderId} and stepped down`);
+    }
+    
+    const currentState = node.exportState();
+    this.nodeUiStateSnapshots.set(change.nodeId, currentState);
+    // Remove from pending set since heartbeat was received
+    this.revivedNodesPendingHeartbeat.delete(change.nodeId);
+  }
+
+  private applyCommitUpdateChange(change: PendingStateChange, node: RaftNode) {
+    if (change.entryIndex === undefined) {
+      return;
+    }
+    
+    // This is an AppendResponse that completed visually
+    // Track that this follower has confirmed replication
+    const senderNodeId = this.responseSenderByResponseId.get(change.messageId);
+    if (!senderNodeId) {
+      // Response sender not tracked, skip
+      return;
+    }
+    
+    let confirmedNodes = this.pendingCommits.get(change.entryIndex);
+    if (!confirmedNodes) {
+      confirmedNodes = new Set();
+      this.pendingCommits.set(change.entryIndex, confirmedNodes);
+    }
+    confirmedNodes.add(senderNodeId);
+    
+    // Check if quorum is reached for this entry
+    // The leader already has the entry, so we need (majority - 1) followers to confirm
+    const totalNodes = this.nodes.size;
+    const majority = Math.floor(totalNodes / 2) + 1;
+    // Leader counts as 1, so we need (majority - 1) more followers
+    const requiredFollowers = majority - 1;
+    
+    if (node && node.role === "leader" && confirmedNodes.size >= requiredFollowers) {
+      // Quorum reached - update commitIndex
+      const oldCommitIndex = node.commitIndex;
+      node.commitIndex = Math.max(node.commitIndex, change.entryIndex);
+      
+      // Log commit event if commitIndex actually changed
+      if (node.commitIndex > oldCommitIndex) {
+        const entryValue = this.entryValuesByIndex.get(change.entryIndex) || "unknown";
+        this.logEvent(`Entry "${entryValue}" confirmed by quorum nodes, entry is committed`);
+      }
+      
+      // Clean up tracking for this entry
+      this.cleanupCommitTracking(change.entryIndex, change.messageId);
+    } else {
+      // Update replication count for logging
+      const replicationCount = this.entryReplicationCounts.get(change.entryIndex);
+      if (replicationCount && senderNodeId) {
+        replicationCount.add(senderNodeId);
+        // Log vote grant progress (but only once per new count to avoid spam)
+        // We'll log this in a different way - maybe when we reach certain milestones
+      }
+    }
+  }
+
+  private cleanupCommitTracking(entryIndex: number, messageId: string) {
+    // Clean up tracking for this entry
+    this.pendingCommits.delete(entryIndex);
+    this.pendingCommitUiUpdates.delete(entryIndex);
+    this.entryReplicationCounts.delete(entryIndex);
+    this.entryValuesByIndex.delete(entryIndex);
+    // Clean up request ID mapping
+    const requestIdsToRemove: string[] = [];
+    this.entryIndexByRequestId.forEach((idx, reqId) => {
+      if (idx === entryIndex) {
+        requestIdsToRemove.push(reqId);
+      }
+    });
+    requestIdsToRemove.forEach(reqId => this.entryIndexByRequestId.delete(reqId));
+    // Clean up response sender mapping
+    this.responseSenderByResponseId.delete(messageId);
   }
 
   private logEvent(message: string) {
