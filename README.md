@@ -2,6 +2,8 @@
 
 A frontend-only Raft consensus visualizer and simulator built with React + TypeScript. This project illustrates how Raft achieves leader election, quorum-based decisions, and log replication through animated RPC messages between nodes.
 
+![Screenshot](./screenshot.png)
+
 ## Features
 
 - 🎨 **Visualize** the Raft protocol (leader election, heartbeats, log replication)
