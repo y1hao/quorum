@@ -50,8 +50,9 @@ export const NodeCircle = ({
       />
       <text
         x={x}
-        y={y + 4}
+        y={y}
         textAnchor="middle"
+        dominantBaseline="middle"
         className="font-semibold fill-slate-900"
         fillOpacity={opacity}
       >
