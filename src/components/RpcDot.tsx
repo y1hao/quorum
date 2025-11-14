@@ -14,15 +14,15 @@ interface RpcDotProps {
 const MESSAGE_COLORS: Record<RpcVisualMessage["type"], string> = {
   RequestVote: "#facc15",
   VoteGranted: "#16a34a",
-  AppendEntries: "#ef4444",
-  AppendResponse: "#f97316",
+  AppendEntries: "#2563eb", // Blue for AppendEntries
+  AppendResponse: "#a855f7", // Purple for AppendResponse
 };
 
 const HEARTBEAT_COLORS: Record<RpcVisualMessage["type"], string> = {
   RequestVote: "#facc15", // Not used for heartbeats
   VoteGranted: "#22c55e", // Not used for heartbeats
-  AppendEntries: "#2563eb", // Blue for heartbeat AppendEntries
-  AppendResponse: "#38bdf8", // Lighter blue for heartbeat responses
+  AppendEntries: "#ef4444", // Red for heartbeat AppendEntries (matches old AppendEntries color)
+  AppendResponse: "#f97316", // Orange for heartbeat responses (matches old AppendResponse color)
 };
 
 const getMessageColor = (
