@@ -14,8 +14,8 @@ interface ClusterCanvasProps {
 }
 
 const WIDTH = 720;
-const HEIGHT = 520;
-const RADIUS = 200;
+const HEIGHT = 720;
+const RADIUS = 260;
 
 export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanvasProps) => {
   const ids = cluster.nodes.map((node) => node.id);
@@ -40,8 +40,9 @@ export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanv
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-full w-full">
         <defs>
           <radialGradient id="cluster-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#64748b" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="#0f172a" stopOpacity={0.8} />
+            <stop offset="0%" stopColor="#64748b" stopOpacity={0.25} />
+            <stop offset="50%" stopColor="#475569" stopOpacity={0.12} />
+            <stop offset="100%" stopColor="transparent" stopOpacity={0} />
           </radialGradient>
         </defs>
         <rect width={WIDTH} height={HEIGHT} fill="url(#cluster-glow)" rx={24} />
