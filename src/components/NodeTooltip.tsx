@@ -19,7 +19,7 @@ export const NodeTooltip = ({
   const top = `${(y / viewportHeight) * 100}%`;
   return (
     <div
-      className="absolute rounded-md bg-slate-900/80 px-3 py-2 text-xs shadow-2xl backdrop-blur"
+      className="absolute rounded-md bg-slate-900/80 px-3 py-2 text-xs shadow-2xl backdrop-blur pointer-events-none"
       style={{ left, top, transform: "translate(12px, -12px)" }}
     >
       <p className="font-semibold">{node.id}</p>
