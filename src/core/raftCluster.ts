@@ -34,6 +34,11 @@ export class RaftCluster {
   private entryValuesByIndex: Map<number, string> = new Map(); // entryIndex -> entry command value
   private loggedElections: Set<string> = new Set(); // Track logged elections: "nodeId-term"
 
+  /**
+   * Creates a new Raft cluster with the specified number of nodes.
+   * 
+   * @param count - Number of nodes to create in the cluster. Nodes are named N1, N2, N3, etc.
+   */
   constructor(count: number) {
     for (let i = 0; i < count; i += 1) {
       const id = `N${i + 1}`;
@@ -64,6 +69,14 @@ export class RaftCluster {
     });
   }
 
+  /**
+   * Delivers all queued messages to their recipients.
+   * 
+   * Processes messages from the message queue, handling state changes and tracking
+   * pending updates for visual synchronization. Messages are delivered to nodes,
+   * and responses are automatically enqueued. State changes are deferred until
+   * messages complete their visual journey (see applyPendingStateChanges).
+   */
   deliver() {
     if (!this.messageQueue.length) {
       return;
@@ -202,7 +215,16 @@ export class RaftCluster {
     });
   }
   
-  // Apply pending state changes when messages start/complete their visual journey
+  /**
+   * Applies pending state changes when messages start or complete their visual journey.
+   * 
+   * This method synchronizes node state changes with the visual animation of messages.
+   * State changes are deferred from delivery() until messages are visually started/completed
+   * to ensure the UI accurately reflects the Raft algorithm's behavior.
+   * 
+   * @param startedMessageIds - Set of message IDs that have started traveling visually
+   * @param completedMessageIds - Set of message IDs that have completed traveling visually
+   */
   applyPendingStateChanges(startedMessageIds: Set<string>, completedMessageIds: Set<string>) {
     const toApply: PendingStateChange[] = [];
     
@@ -347,6 +369,12 @@ export class RaftCluster {
     });
   }
 
+  /**
+   * Adds a new node to the cluster.
+   * 
+   * Creates a new RaftNode with the next sequential ID (N1, N2, N3, etc.)
+   * and connects it to all existing peers in the cluster.
+   */
   addNode() {
     const nextId = `N${this.nodes.size + 1}`;
     const node = new RaftNode(nextId);
@@ -354,6 +382,11 @@ export class RaftCluster {
     this.connectPeers();
   }
 
+  /**
+   * Returns the current leader node, if one exists.
+   * 
+   * @returns The leader node, or null if no leader has been elected yet
+   */
   leader(): RaftNode | null {
     for (const node of Array.from(this.nodes.values())) {
       if (node.role === "leader") {
@@ -363,6 +396,21 @@ export class RaftCluster {
     return null;
   }
 
+  /**
+   * Toggles a node's online/offline status.
+   * 
+   * When a node is killed (set offline):
+   * - Stores its current state snapshot for UI display
+   * - If it was a leader, it steps down to follower
+   * - Stops processing messages to/from this node
+   * 
+   * When a node is revived (set online):
+   * - Restores it using the stored state snapshot
+   * - Marks it as pending a heartbeat update
+   * - Node will sync with the cluster when it receives the next heartbeat
+   * 
+   * @param nodeId - The ID of the node to toggle (e.g., "N1", "N2")
+   */
   toggleNodeLiveliness(nodeId: string) {
     if (this.killedNodes.has(nodeId)) {
       // Node is coming back online
@@ -400,6 +448,17 @@ export class RaftCluster {
     }
   }
 
+  /**
+   * Exports the current state of the cluster for UI rendering.
+   * 
+   * Returns a snapshot of all nodes' states, recent messages, and cluster metadata.
+   * For nodes that are alive but pending a heartbeat update, uses stored UI snapshots
+   * to maintain visual consistency during the transition period.
+   * 
+   * @param includeMessages - If true, includes recent messages and clears them after export.
+   *                          If false, only exports node states (useful for animation frame updates).
+   * @returns Complete cluster state including nodes, messages, leader info, term, and events
+   */
   exportState(includeMessages = true): ClusterState {
     const snapshots: ClusterNodeState[] = Array.from(this.nodes.values()).map((node) => {
       const isAlive = !this.killedNodes.has(node.id);
@@ -466,6 +525,14 @@ export class RaftCluster {
     return state;
   }
 
+  /**
+   * Drains and returns all recent messages, clearing the internal buffer.
+   * 
+   * This is useful for getting messages that need to be visualized without
+   * including them in the main exportState() call.
+   * 
+   * @returns Array of recent Raft messages that were queued since last drain
+   */
   drainRecentMessages(): RaftMessage[] {
     if (!this.recentMessages.length) {
       return [];
@@ -480,6 +547,15 @@ export class RaftCluster {
     this.nodes.forEach((node) => node.setPeers(ids));
   }
 
+  /**
+   * Enqueues messages for delivery in the next deliver() call.
+   * 
+   * Messages are added to both the delivery queue and the recent messages buffer.
+   * The delivery queue is processed by deliver(), while recent messages are included
+   * in exportState() for visualization.
+   * 
+   * @param messages - Array of Raft messages to enqueue
+   */
   enqueueMessages(messages: RaftMessage[]) {
     if (!messages.length) {
       return;
