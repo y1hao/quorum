@@ -9,7 +9,12 @@ function App() {
   return (
     <main className="h-screen bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden">
       <div className="mx-auto h-full flex max-w-6xl flex-col gap-4 lg:flex-row">
-        <section className="w-full lg:w-80 flex-shrink-0">
+        <section className="order-1 lg:order-2 flex-1 rounded-3xl border border-slate-800 bg-slate-900/40 p-4 min-h-[400px] lg:min-h-0">
+          <div className="h-full">
+            <ClusterCanvas cluster={cluster} rpcMessages={rpcMessages} onNodeClick={toggleNodeLiveliness} />
+          </div>
+        </section>
+        <section className="order-2 lg:order-1 w-full lg:w-80 flex-shrink-0">
           <SidebarState
             cluster={cluster}
             isRunning={isRunning}
@@ -17,11 +22,6 @@ function App() {
             onReset={reset}
             onAddCommand={(value) => addCommand(value)}
           />
-        </section>
-        <section className="flex-1 rounded-3xl border border-slate-800 bg-slate-900/40 p-4 min-h-0">
-          <div className="h-full">
-            <ClusterCanvas cluster={cluster} rpcMessages={rpcMessages} onNodeClick={toggleNodeLiveliness} />
-          </div>
         </section>
       </div>
     </main>
