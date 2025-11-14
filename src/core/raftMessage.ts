@@ -16,7 +16,8 @@ const makeMessage = <T>(
   from: string,
   to: string,
   term: number,
-  payload?: T
+  payload?: T,
+  respondsTo?: string
 ): RaftMessage<T> => ({
   id: nextMessageId(),
   type,
@@ -24,6 +25,7 @@ const makeMessage = <T>(
   to,
   term,
   payload,
+  respondsTo,
 });
 
 export const createRequestVote = (
@@ -39,13 +41,7 @@ export const createVoteGranted = (
   term: number,
   payload: VoteGrantedPayload,
   respondsTo?: string
-) => {
-  const msg = makeMessage<VoteGrantedPayload>("VoteGranted", from, to, term, payload);
-  if (respondsTo) {
-    msg.respondsTo = respondsTo;
-  }
-  return msg;
-};
+) => makeMessage<VoteGrantedPayload>("VoteGranted", from, to, term, payload, respondsTo);
 
 export const createAppendEntries = (
   from: string,
@@ -60,13 +56,7 @@ export const createAppendResponse = (
   term: number,
   payload: AppendResponsePayload,
   respondsTo?: string
-) => {
-  const msg = makeMessage<AppendResponsePayload>("AppendResponse", from, to, term, payload);
-  if (respondsTo) {
-    msg.respondsTo = respondsTo;
-  }
-  return msg;
-};
+) => makeMessage<AppendResponsePayload>("AppendResponse", from, to, term, payload, respondsTo);
 
 export const cloneMessage = <T>(msg: RaftMessage<T>, overrides: Partial<RaftMessage<T>> = {}) => ({
   ...msg,
