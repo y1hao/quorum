@@ -317,6 +317,12 @@ export class RaftNode {
       return false;
     }
 
+    // Check if we can vote for this candidate:
+    // - !this.votedFor: Haven't voted yet (can vote)
+    // - this.votedFor === candidateId: Already voted for this same candidate (can vote again for retries)
+    //   This handles the case where the candidate's vote request was lost and they retry.
+    //   In Raft, once a node votes for a candidate, it cannot vote for a different candidate
+    //   in the same term, but it can grant the vote again to the same candidate on retry.
     const notVotedYet = !this.votedFor || this.votedFor === candidateId;
     const logUpToDate = this.isCandidateLogUpToDate(payload);
     const granted = notVotedYet && logUpToDate;
