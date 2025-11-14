@@ -22,8 +22,9 @@ export const HEARTBEAT_INTERVAL_MS = 1500;
 
 /** Election timeout range in milliseconds [min, max]
  * Must be longer than heartbeat interval to prevent unnecessary elections.
- * Randomization helps avoid split votes when multiple nodes start elections simultaneously. */
-export const ELECTION_TIMEOUT_RANGE_MS: [number, number] = [2000, 3000];
+ * Randomization helps avoid split votes when multiple nodes start elections simultaneously.
+ * Wider range reduces the chance of multiple nodes becoming candidates at the same time. */
+export const ELECTION_TIMEOUT_RANGE_MS: [number, number] = [2000, 6000];
 
 /** Simulation tick interval in milliseconds (how often the simulation advances)
  * Should be frequent enough to capture all events smoothly */
