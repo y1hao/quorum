@@ -92,115 +92,19 @@ export class RaftCluster {
       }
       
       // Track pending state changes for messages that trigger them
-      if (msg.type === "RequestVote") {
-        const sender = this.nodes.get(msg.from);
-        if (sender && sender.role !== "candidate") {
-          // Mark this message as triggering an election start
-          // State change will be applied when message starts traveling visually
-          this.pendingStateChanges.set(msg.id, {
-            type: "election_start",
-            nodeId: msg.from,
-            messageId: msg.id,
-            newTerm: msg.term,
-          });
-          // Log vote request event when message starts (will be logged in applyPendingStateChanges)
-        }
-      }
-      
-      // Track VoteGranted messages - leader state change happens when these complete
-      if (msg.type === "VoteGranted") {
-        const recipient = this.nodes.get(msg.to);
-        const payload = msg.payload as any;
-        if (recipient && recipient.role === "candidate" && payload?.granted) {
-          // Track vote count for logging
-          if (!this.voteCountsByCandidate.has(msg.to)) {
-            this.voteCountsByCandidate.set(msg.to, { term: msg.term, votes: new Set([msg.to]) });
-          }
-          const voteCount = this.voteCountsByCandidate.get(msg.to);
-          if (voteCount && voteCount.term === msg.term) {
-            voteCount.votes.add(msg.from);
-          }
-          // Mark this message as potentially triggering leader election
-          // Store vote information so we can check quorum when message completes
-          this.pendingStateChanges.set(msg.id, {
-            type: "leader_election",
-            nodeId: msg.to,
-            messageId: msg.id,
-            voteTerm: msg.term,
-            voteGranted: payload.granted,
-          });
-        }
-      }
-      
-      // Track AppendEntries messages
-      if (msg.type === "AppendEntries") {
-        const recipient = this.nodes.get(msg.to);
-        const payload = msg.payload as AppendEntriesPayload;
-        
-        // If this is a heartbeat to a node that's pending a heartbeat update
-        if (recipient && this.revivedNodesPendingHeartbeat.has(msg.to) && payload?.isHeartbeat === true) {
-          // Check if the recipient was a previous leader stepping down due to new leader
-          const snapshot = this.nodeUiStateSnapshots.get(msg.to);
-          const wasPreviousLeader = snapshot && snapshot.role === "leader";
-          const isNewLeaderTerm = msg.term > (snapshot?.term ?? 0);
-          
-          // Mark this message as updating the UI state when it completes
-          this.pendingStateChanges.set(msg.id, {
-            type: "log_update",
-            nodeId: msg.to,
-            messageId: msg.id,
-            wasPreviousLeader: wasPreviousLeader && isNewLeaderTerm,
-            newLeaderId: wasPreviousLeader && isNewLeaderTerm ? msg.from : undefined,
-          });
-        }
-        
-        // Track AppendEntries with new entries for commit tracking
-        if (payload?.entries && payload.entries.length > 0 && !payload.isHeartbeat) {
-          const sender = this.nodes.get(msg.from);
-          if (sender && sender.role === "leader") {
-            // Track the highest entry index in this request
-            const highestIndex = Math.max(...payload.entries.map(e => e.index));
-            this.entryIndexByRequestId.set(msg.id, highestIndex);
-            
-            // Initialize pending commit tracking for new entries if not already tracked
-            payload.entries.forEach(entry => {
-              if (!this.pendingCommits.has(entry.index)) {
-                this.pendingCommits.set(entry.index, new Set());
-                // Store the commitIndex before this entry for UI update
-                this.pendingCommitUiUpdates.set(entry.index, sender.commitIndex);
-                // Initialize replication count (leader already has it)
-                this.entryReplicationCounts.set(entry.index, new Set([msg.from]));
-                // Store entry value for commit logging
-                this.entryValuesByIndex.set(entry.index, entry.command);
-                // Log new entry event
-                const entryValue = entry.command;
-                this.logEvent(`${msg.from} added new entry "${entryValue}", requesting followers to append`);
-              }
-            });
-          }
-        }
-      }
-      
-      // Track AppendResponse messages for commit tracking
-      if (msg.type === "AppendResponse") {
-        const recipient = this.nodes.get(msg.to);
-        const payload = msg.payload as AppendResponsePayload;
-        if (recipient && recipient.role === "leader" && payload?.success && msg.respondsTo) {
-          // Find which entry index this response is for
-          const entryIndex = this.entryIndexByRequestId.get(msg.respondsTo);
-          if (entryIndex !== undefined) {
-            // Track which node sent this response
-            this.responseSenderByResponseId.set(msg.id, msg.from);
-            // Mark this response for commit tracking when it completes visually
-            // We'll check quorum when the response completes, not when it's delivered
-            this.pendingStateChanges.set(msg.id, {
-              type: "commit_update",
-              nodeId: msg.to, // leader node
-              messageId: msg.id,
-              entryIndex: entryIndex,
-            });
-          }
-        }
+      switch (msg.type) {
+        case "RequestVote":
+          this.handleRequestVoteTracking(msg);
+          break;
+        case "VoteGranted":
+          this.handleVoteGrantedTracking(msg);
+          break;
+        case "AppendEntries":
+          this.handleAppendEntriesTracking(msg);
+          break;
+        case "AppendResponse":
+          this.handleAppendResponseTracking(msg);
+          break;
       }
       
       const recipient = this.nodes.get(msg.to);
@@ -562,6 +466,117 @@ export class RaftCluster {
     }
     this.messageQueue.push(...messages);
     this.recentMessages.push(...messages);
+  }
+
+  private handleRequestVoteTracking(msg: RaftMessage) {
+    const sender = this.nodes.get(msg.from);
+    if (sender && sender.role !== "candidate") {
+      // Mark this message as triggering an election start
+      // State change will be applied when message starts traveling visually
+      this.pendingStateChanges.set(msg.id, {
+        type: "election_start",
+        nodeId: msg.from,
+        messageId: msg.id,
+        newTerm: msg.term,
+      });
+      // Log vote request event when message starts (will be logged in applyPendingStateChanges)
+    }
+  }
+
+  private handleVoteGrantedTracking(msg: RaftMessage) {
+    // Track VoteGranted messages - leader state change happens when these complete
+    const recipient = this.nodes.get(msg.to);
+    const payload = msg.payload as any;
+    if (recipient && recipient.role === "candidate" && payload?.granted) {
+      // Track vote count for logging
+      if (!this.voteCountsByCandidate.has(msg.to)) {
+        this.voteCountsByCandidate.set(msg.to, { term: msg.term, votes: new Set([msg.to]) });
+      }
+      const voteCount = this.voteCountsByCandidate.get(msg.to);
+      if (voteCount && voteCount.term === msg.term) {
+        voteCount.votes.add(msg.from);
+      }
+      // Mark this message as potentially triggering leader election
+      // Store vote information so we can check quorum when message completes
+      this.pendingStateChanges.set(msg.id, {
+        type: "leader_election",
+        nodeId: msg.to,
+        messageId: msg.id,
+        voteTerm: msg.term,
+        voteGranted: payload.granted,
+      });
+    }
+  }
+
+  private handleAppendEntriesTracking(msg: RaftMessage) {
+    // Track AppendEntries messages
+    const recipient = this.nodes.get(msg.to);
+    const payload = msg.payload as AppendEntriesPayload;
+    
+    // If this is a heartbeat to a node that's pending a heartbeat update
+    if (recipient && this.revivedNodesPendingHeartbeat.has(msg.to) && payload?.isHeartbeat === true) {
+      // Check if the recipient was a previous leader stepping down due to new leader
+      const snapshot = this.nodeUiStateSnapshots.get(msg.to);
+      const wasPreviousLeader = snapshot && snapshot.role === "leader";
+      const isNewLeaderTerm = msg.term > (snapshot?.term ?? 0);
+      
+      // Mark this message as updating the UI state when it completes
+      this.pendingStateChanges.set(msg.id, {
+        type: "log_update",
+        nodeId: msg.to,
+        messageId: msg.id,
+        wasPreviousLeader: wasPreviousLeader && isNewLeaderTerm,
+        newLeaderId: wasPreviousLeader && isNewLeaderTerm ? msg.from : undefined,
+      });
+    }
+    
+    // Track AppendEntries with new entries for commit tracking
+    if (payload?.entries && payload.entries.length > 0 && !payload.isHeartbeat) {
+      const sender = this.nodes.get(msg.from);
+      if (sender && sender.role === "leader") {
+        // Track the highest entry index in this request
+        const highestIndex = Math.max(...payload.entries.map(e => e.index));
+        this.entryIndexByRequestId.set(msg.id, highestIndex);
+        
+        // Initialize pending commit tracking for new entries if not already tracked
+        payload.entries.forEach(entry => {
+          if (!this.pendingCommits.has(entry.index)) {
+            this.pendingCommits.set(entry.index, new Set());
+            // Store the commitIndex before this entry for UI update
+            this.pendingCommitUiUpdates.set(entry.index, sender.commitIndex);
+            // Initialize replication count (leader already has it)
+            this.entryReplicationCounts.set(entry.index, new Set([msg.from]));
+            // Store entry value for commit logging
+            this.entryValuesByIndex.set(entry.index, entry.command);
+            // Log new entry event
+            const entryValue = entry.command;
+            this.logEvent(`${msg.from} added new entry "${entryValue}", requesting followers to append`);
+          }
+        });
+      }
+    }
+  }
+
+  private handleAppendResponseTracking(msg: RaftMessage) {
+    // Track AppendResponse messages for commit tracking
+    const recipient = this.nodes.get(msg.to);
+    const payload = msg.payload as AppendResponsePayload;
+    if (recipient && recipient.role === "leader" && payload?.success && msg.respondsTo) {
+      // Find which entry index this response is for
+      const entryIndex = this.entryIndexByRequestId.get(msg.respondsTo);
+      if (entryIndex !== undefined) {
+        // Track which node sent this response
+        this.responseSenderByResponseId.set(msg.id, msg.from);
+        // Mark this response for commit tracking when it completes visually
+        // We'll check quorum when the response completes, not when it's delivered
+        this.pendingStateChanges.set(msg.id, {
+          type: "commit_update",
+          nodeId: msg.to, // leader node
+          messageId: msg.id,
+          entryIndex: entryIndex,
+        });
+      }
+    }
   }
 
   private logEvent(message: string) {
