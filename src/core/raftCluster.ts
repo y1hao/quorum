@@ -1,5 +1,5 @@
 import { RaftNode } from "./raftNode";
-import { ClusterState, RaftMessage, AppendEntriesPayload, AppendResponsePayload, EventLogEntry } from "./types";
+import { ClusterState, ClusterNodeState, RaftMessage, AppendEntriesPayload, AppendResponsePayload, EventLogEntry } from "./types";
 
 interface PendingStateChange {
   type: "election_start" | "leader_election" | "log_update" | "commit_update";
@@ -19,7 +19,6 @@ export class RaftCluster {
   private messageQueue: RaftMessage[] = [];
   private recentMessages: RaftMessage[] = [];
   private tickCounter = 0;
-  private lastDelta = 100;
   private killedNodes: Set<string> = new Set();
   private pendingStateChanges: Map<string, PendingStateChange> = new Map(); // messageId -> change
   private nodeUiStateSnapshots: Map<string, Omit<ClusterNodeState, "isAlive">> = new Map(); // Last known UI state before node was killed
@@ -44,7 +43,6 @@ export class RaftCluster {
   }
 
   tick(deltaMs = 100) {
-    this.lastDelta = deltaMs;
     this.tickCounter += 1;
     
     this.nodes.forEach((node, nodeId) => {
@@ -242,9 +240,6 @@ export class RaftCluster {
           if (node.role === "candidate" && change.voteTerm === node.term) {
             // Vote was already added in handleMessage, now check if quorum is reached
             // All votes that have been delivered are already counted, so we can check quorum now
-            const voteCount = this.voteCountsByCandidate.get(change.nodeId);
-            const totalNodes = this.nodes.size;
-            
             if (node.reachedQuorum()) {
               node.becomeLeader();
               // Log combined vote grants and leader election
@@ -335,8 +330,6 @@ export class RaftCluster {
           const replicationCount = this.entryReplicationCounts.get(change.entryIndex);
           if (replicationCount && senderNodeId) {
             replicationCount.add(senderNodeId);
-            const totalNodes = this.nodes.size;
-            const confirmedCount = replicationCount.size + 1; // +1 for leader
             // Log vote grant progress (but only once per new count to avoid spam)
             // We'll log this in a different way - maybe when we reach certain milestones
           }
@@ -400,7 +393,7 @@ export class RaftCluster {
   }
 
   exportState(includeMessages = true): ClusterState {
-    const snapshots = Array.from(this.nodes.values()).map((node) => {
+    const snapshots: ClusterNodeState[] = Array.from(this.nodes.values()).map((node) => {
       const isAlive = !this.killedNodes.has(node.id);
       
       // If node is alive but pending a heartbeat update, use the stored UI snapshot
