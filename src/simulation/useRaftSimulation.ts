@@ -35,6 +35,8 @@ export const useRaftSimulation = (
 
     const id = window.setInterval(() => {
       const cluster = clusterRef.current;
+      // Use SIMULATION_TICK_INTERVAL_MS for consistent timing in production.
+      // Tests can pass larger values to simulate time passing faster.
       cluster.tick(SIMULATION_TICK_INTERVAL_MS);
       cluster.deliver();
       const snapshot = cluster.exportState();

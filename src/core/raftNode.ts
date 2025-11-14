@@ -54,6 +54,14 @@ export class RaftNode {
     this.peers = peerIds.filter((peer) => peer !== this.id);
   }
 
+  /**
+   * Advance the node's internal timers by the given delta time.
+   * 
+   * @param deltaMs - Milliseconds elapsed since last tick. Defaults to 100ms.
+   *                  This parameter allows tests to simulate time passing faster
+   *                  by passing larger values (e.g., tick(2000) to simulate 2 seconds).
+   *                  In production, this is typically called with SIMULATION_TICK_INTERVAL_MS.
+   */
   tick(deltaMs = 100): RaftMessage[] {
     const outgoing: RaftMessage[] = [];
     this.electionElapsed += deltaMs;

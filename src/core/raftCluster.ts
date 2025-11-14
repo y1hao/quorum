@@ -42,6 +42,14 @@ export class RaftCluster {
     this.connectPeers();
   }
 
+  /**
+   * Advance the cluster simulation by one tick.
+   * 
+   * @param deltaMs - Milliseconds elapsed since last tick. Defaults to 100ms.
+   *                  This parameter is passed through to all nodes and allows:
+   *                  - Tests to simulate time passing faster (e.g., tick(2000) for 2 seconds)
+   *                  - Production code to use SIMULATION_TICK_INTERVAL_MS for consistent timing
+   */
   tick(deltaMs = 100) {
     this.tickCounter += 1;
     
