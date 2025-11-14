@@ -61,34 +61,37 @@ const EventLog = ({ events }: { events: ClusterState["events"] }) => {
       <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
         Event Log
       </h3>
-      <div
-        ref={scrollRef}
-        className="h-48 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-xs"
-      >
-        {events.length === 0 ? (
-          <p className="text-slate-500">No events yet</p>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {reversedEvents.map((event, index) => {
-              const isHighlighted = highlightedEvents.has(event.id);
-              return (
-                <div
-                  key={event.id}
-                  className={`flex gap-2 rounded px-2 py-1 text-slate-300 hover:bg-slate-700/50 ${
-                    isHighlighted
-                      ? "text-emerald-100 animate-fade-out"
-                      : ""
-                  }`}
-                >
-                  <span className="flex-shrink-0 text-slate-500 font-mono">
-                    {events.length - index}
-                  </span>
-                  <span className="flex-1">{event.message}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          className="h-48 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-xs"
+        >
+          {events.length === 0 ? (
+            <p className="text-slate-500">No events yet</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {reversedEvents.map((event, index) => {
+                const isHighlighted = highlightedEvents.has(event.id);
+                return (
+                  <div
+                    key={event.id}
+                    className={`flex gap-2 rounded px-2 py-1 text-slate-300 hover:bg-slate-700/50 ${
+                      isHighlighted
+                        ? "text-emerald-100 animate-fade-out"
+                        : ""
+                    }`}
+                  >
+                    <span className="flex-shrink-0 text-slate-500 font-mono">
+                      {events.length - index}
+                    </span>
+                    <span className="flex-1">{event.message}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 rounded-b-lg bg-gradient-to-t from-slate-900/95 via-slate-900/60 to-transparent" />
       </div>
     </div>
   );
