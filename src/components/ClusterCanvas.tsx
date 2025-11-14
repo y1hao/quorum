@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { line, curveCatmullRomClosed } from "d3";
 import { ClusterState, ClusterNodeState } from "../core/types";
 import { RpcVisualMessage } from "../simulation/simulationDriver";
 import { computeNodePositions, NodePosition } from "../utils/layout";
@@ -21,15 +20,27 @@ export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanv
   const ids = cluster.nodes.map((node) => node.id);
   const positions = computeNodePositions(ids, RADIUS, WIDTH / 2, HEIGHT / 2);
 
-  const hullPath = (() => {
-    if (ids.length < 3) {
-      return "";
+  // Generate arc paths connecting each node to its neighbors along the circle
+  const neighborConnections = (() => {
+    if (ids.length < 2) {
+      return [];
     }
-    const generator = line<NodePosition>()
-      .curve(curveCatmullRomClosed.alpha(0.8))
-      .x((d) => d.x)
-      .y((d) => d.y);
-    return generator(ids.map((id) => positions[id]));
+    const connections: Array<{ path: string }> = [];
+    for (let i = 0; i < ids.length; i++) {
+      const currentId = ids[i];
+      const nextId = ids[(i + 1) % ids.length];
+      const currentPos = positions[currentId];
+      const nextPos = positions[nextId];
+      if (currentPos && nextPos) {
+        // Create an arc path along the circle
+        // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+        // large-arc-flag: 0 (use smaller arc)
+        // sweep-flag: 1 (clockwise)
+        const path = `M ${currentPos.x} ${currentPos.y} A ${RADIUS} ${RADIUS} 0 0 1 ${nextPos.x} ${nextPos.y}`;
+        connections.push({ path });
+      }
+    }
+    return connections;
   })();
 
   const [hovered, setHovered] = useState<ClusterNodeState | null>(null);
@@ -46,15 +57,16 @@ export const ClusterCanvas = ({ cluster, rpcMessages, onNodeClick }: ClusterCanv
           </radialGradient>
         </defs>
         <rect width={WIDTH} height={HEIGHT} fill="url(#cluster-glow)" rx={24} />
-        {hullPath && (
+        {neighborConnections.map((connection, index) => (
           <path
-            d={hullPath}
+            key={`connection-${index}`}
+            d={connection.path}
             fill="none"
             stroke="#1d4ed8"
             strokeOpacity={0.2}
             strokeWidth={2}
           />
-        )}
+        ))}
         {rpcMessages.map((message) => {
           const from = positions[message.from];
           const to = positions[message.to];
