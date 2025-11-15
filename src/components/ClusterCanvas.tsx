@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ClusterState, ClusterNodeState } from "../core/types";
 import { RpcVisualMessage } from "../simulation/simulationDriver";
-import { computeNodePositions, NodePosition } from "../utils/layout";
+import { computeNodePositions } from "../utils/layout";
 import { NodeCircle } from "./NodeCircle";
 import { RpcDot } from "./RpcDot";
 import { NodeTooltip } from "./NodeTooltip";
