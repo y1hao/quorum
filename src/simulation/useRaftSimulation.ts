@@ -49,13 +49,9 @@ export const useRaftSimulation = (
 
   useEffect(() => {
     let frame: number;
-    let prev = performance.now();
 
     const animate = () => {
-      const current = performance.now();
-      const delta = current - prev;
-      prev = current;
-      const completedMessageIds = driverRef.current.advance(delta);
+      const completedMessageIds = driverRef.current.advance();
       
       // Check for started/completed messages and apply pending state changes
       const startedMessages = driverRef.current.getStartedMessages();

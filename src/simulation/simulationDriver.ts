@@ -96,7 +96,7 @@ export class SimulationDriver {
     });
   }
 
-  advance(deltaMs: number): string[] {
+  advance(): string[] {
     const currentTime = now();
     const completed: string[] = [];
     
