@@ -16,6 +16,16 @@ export class SimulationDriver {
   private messages: Map<string, RpcVisualMessage> = new Map();
   private pendingResponses: Map<string, RpcVisualMessage> = new Map(); // Responses waiting for their request to complete
 
+  /**
+   * Ingests new Raft messages into the visualization system.
+   * 
+   * Converts Raft messages into visual messages with animation properties (progress, duration, timestamps).
+   * Handles request/response pairing: responses are delayed until their corresponding request completes
+   * to ensure proper visual sequencing. Request messages start immediately, while response messages
+   * wait for their request to finish before starting their animation.
+   * 
+   * @param newMessages - Array of Raft messages to add to the visualization queue
+   */
   ingest(newMessages: RaftMessage[]) {
     const currentTime = now();
     const incoming = newMessages ?? [];
@@ -96,6 +106,18 @@ export class SimulationDriver {
     });
   }
 
+  /**
+   * Advances the animation of all active messages and returns completed message IDs.
+   * 
+   * Updates the progress of all active messages based on elapsed time since their start time.
+   * Activates pending response messages when their corresponding request completes or when
+   * their scheduled start time is reached. Cleans up completed messages after returning
+   * their IDs so they can be used for state change triggers.
+   * 
+   * Should be called on each animation frame to update message progress.
+   * 
+   * @returns Array of message IDs that have completed their animation (progress >= 1)
+   */
   advance(): string[] {
     const currentTime = now();
     const completed: string[] = [];
@@ -144,6 +166,14 @@ export class SimulationDriver {
     return completedIds;
   }
   
+  /**
+   * Returns the set of message IDs that have started animating.
+   * 
+   * A message is considered started if its startTime has been reached and it has
+   * non-zero progress. Used to trigger state changes when messages begin their visual journey.
+   * 
+   * @returns Set of message IDs that have started animating
+   */
   getStartedMessages(): Set<string> {
     const currentTime = now();
     const started = new Set<string>();
@@ -158,6 +188,14 @@ export class SimulationDriver {
     return started;
   }
   
+  /**
+   * Returns the set of message IDs that have completed their animation.
+   * 
+   * A message is considered completed if its startTime has been reached and its
+   * progress is >= 1. Used to trigger state changes when messages finish their visual journey.
+   * 
+   * @returns Set of message IDs that have completed animating
+   */
   getCompletedMessages(): Set<string> {
     const currentTime = now();
     const completed = new Set<string>();
@@ -172,6 +210,14 @@ export class SimulationDriver {
     return completed;
   }
 
+  /**
+   * Returns all currently active messages that should be rendered.
+   * 
+   * Filters messages to only include those whose startTime has been reached.
+   * Used by the UI to render animated message dots traveling between nodes.
+   * 
+   * @returns Array of visual messages that are currently active and should be displayed
+   */
   activeMessages() {
     const currentTime = now();
     return Array.from(this.messages.values()).filter(
@@ -179,6 +225,12 @@ export class SimulationDriver {
     );
   }
 
+  /**
+   * Resets the simulation driver by clearing all messages.
+   * 
+   * Removes all active messages and pending responses. Used when resetting
+   * the simulation to start fresh.
+   */
   reset() {
     this.messages.clear();
     this.pendingResponses.clear();
