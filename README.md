@@ -51,6 +51,22 @@ npm run build
 
 The production build will be in the `dist/` directory.
 
+### Deploying to GitHub Pages
+
+This project is configured to automatically deploy to GitHub Pages when you push to the `main` branch.
+
+**Live Site:** [https://y1hao.github.io/quorum/](https://y1hao.github.io/quorum/)
+
+The deployment is handled by GitHub Actions (see `.github/workflows/deploy.yml`). To deploy:
+
+1. Push your changes to the `main` branch
+2. GitHub Actions will automatically build and deploy the site
+3. The site will be available at `https://y1hao.github.io/quorum/`
+
+**Note:** Make sure GitHub Pages is enabled in your repository settings:
+- Go to Settings → Pages
+- Source should be set to "GitHub Actions"
+
 ### Running Tests
 
 ```bash
