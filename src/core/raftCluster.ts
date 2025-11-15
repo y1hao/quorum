@@ -504,7 +504,7 @@ export class RaftCluster {
     }
     
     // Apply candidate state change
-    (node as any).applyElectionStart(change.newTerm);
+    node.applyElectionStart(change.newTerm);
     // Log vote request event only once per election
     const electionKey = `${change.nodeId}-${change.newTerm}`;
     if (!this.loggedElections.has(electionKey)) {
