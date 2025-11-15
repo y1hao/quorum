@@ -28,24 +28,24 @@ export const useRaftSimulation = (
   const [rpcMessages, setRpcMessages] = useState<RpcVisualMessage[]>([]);
   const [isRunning, setIsRunning] = useState(true);
 
+  // Helper function to advance simulation and update state
+  const advanceSimulation = useCallback(() => {
+    const snapshot = clusterRef.current.step(SIMULATION_TICK_INTERVAL_MS);
+    driverRef.current.ingest(snapshot.messages);
+    setClusterState(snapshot);
+  }, []);
+
   useEffect(() => {
     if (!isRunning) {
       return;
     }
 
     const id = window.setInterval(() => {
-      const cluster = clusterRef.current;
-      // Use SIMULATION_TICK_INTERVAL_MS for consistent timing in production.
-      // Tests can pass larger values to simulate time passing faster.
-      cluster.tick(SIMULATION_TICK_INTERVAL_MS);
-      cluster.deliver();
-      const snapshot = cluster.exportState();
-      driverRef.current.ingest(snapshot.messages);
-      setClusterState(snapshot);
+      advanceSimulation();
     }, SIMULATION_TICK_INTERVAL_MS);
 
     return () => window.clearInterval(id);
-  }, [clusterRef, isRunning]);
+  }, [isRunning, advanceSimulation]);
 
   useEffect(() => {
     let frame: number;
@@ -114,12 +114,8 @@ export const useRaftSimulation = (
     cluster.enqueueMessages(replicationMessages);
     
     // Tick by a small amount instead of heartbeatTimeout to avoid triggering elections
-    cluster.tick(SIMULATION_TICK_INTERVAL_MS);
-    cluster.deliver();
-    const snapshot = cluster.exportState();
-    driverRef.current.ingest(snapshot.messages);
-    setClusterState(snapshot);
-  }, [clusterRef]);
+    advanceSimulation();
+  }, [clusterRef, advanceSimulation]);
 
   const toggleNodeLiveliness = useCallback((nodeId: string) => {
     const cluster = clusterRef.current;

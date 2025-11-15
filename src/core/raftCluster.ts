@@ -70,6 +70,22 @@ export class RaftCluster {
   }
 
   /**
+   * Advances the simulation by one step: ticks all nodes, delivers messages, and exports state.
+   * 
+   * This is a convenience method that combines tick(), deliver(), and exportState().
+   * Useful for tests and simulation loops where you want to advance time and get the current state.
+   * 
+   * @param deltaMs - Milliseconds elapsed since last tick. Defaults to 100ms.
+   * @param includeMessages - Whether to include messages in the exported state. Defaults to true.
+   * @returns The current cluster state after advancing one step
+   */
+  step(deltaMs = 100, includeMessages = true): ClusterState {
+    this.tick(deltaMs);
+    this.deliver();
+    return this.exportState(includeMessages);
+  }
+
+  /**
    * Delivers all queued messages to their recipients.
    * 
    * Processes messages from the message queue, handling state changes and tracking

@@ -14,9 +14,7 @@ const advanceCluster = (cluster: RaftCluster, steps: number) => {
       pendingVoteCompletions.clear();
     }
 
-    cluster.tick(200);
-    cluster.deliver();
-    const snapshot = cluster.exportState();
+    const snapshot = cluster.step(200);
     const started = collectMessageIds(snapshot.messages, "RequestVote");
     if (started.length) {
       cluster.applyPendingStateChanges(new Set(started), new Set());
@@ -47,9 +45,7 @@ describe("RaftCluster", () => {
 
   it("exports cluster snapshot with messages", () => {
     const cluster = new RaftCluster(3);
-    cluster.tick(200);
-    cluster.deliver();
-    const state = cluster.exportState();
+    const state = cluster.step(200);
     expect(state.nodes.length).toBe(3);
     expect(state.term).toBeGreaterThanOrEqual(0);
     expect(state.tick).toBeGreaterThan(0);
