@@ -23,9 +23,9 @@ function App() {
     useRaftSimulation(nodeCount);
 
   return (
-    <main className="h-screen bg-slate-950 px-4 py-4 text-slate-100 overflow-hidden">
-      <div className="mx-auto h-full flex max-w-6xl flex-col gap-4 lg:flex-row">
-        <section className="order-1 lg:order-2 flex-1 rounded-3xl border border-slate-800 p-4 min-h-[400px] lg:min-h-0 aspect-square">
+    <main className="min-h-screen bg-slate-950 px-4 py-4 text-slate-100 overflow-auto lg:h-screen lg:overflow-hidden">
+      <div className="mx-auto min-h-full flex max-w-6xl flex-col gap-4 lg:h-full lg:flex-row">
+        <section className="order-1 lg:order-2 flex-1 rounded-3xl border border-slate-800 p-4 min-h-[400px] lg:min-h-0 lg:aspect-square min-w-0">
           <div className="h-full w-full">
             <ClusterCanvas cluster={cluster} rpcMessages={rpcMessages} onNodeClick={toggleNodeLiveliness} />
           </div>
